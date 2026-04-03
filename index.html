@@ -27,8 +27,31 @@
 
       <div class="actions">
         <button id="restart" type="button">重新开始</button>
+        <label class="board-size-picker">
+          <span>棋盘</span>
+          <select id="board-size">
+            <option value="4">4 x 4</option>
+            <option value="5">5 x 5</option>
+            <option value="6">6 x 6</option>
+          </select>
+        </label>
         <p>控制方式: 方向键 / WASD</p>
       </div>
+
+      <section class="debug-tools">
+        <div class="debug-tools__header">
+          <strong>调试模式</strong>
+          <button id="debug-toggle" class="debug-toggle" type="button">开启</button>
+        </div>
+        <div id="debug-panel" class="debug-panel hidden">
+          <p>载入预设后按一次左方向键，直接体验大数字合并震动。</p>
+          <div class="debug-panel__actions">
+            <button type="button" data-debug-preset="128">128 合并</button>
+            <button type="button" data-debug-preset="512">512 合并</button>
+            <button type="button" data-debug-preset="1024">1024 合并</button>
+          </div>
+        </div>
+      </section>
     </aside>
 
     <main class="viewport-shell">
