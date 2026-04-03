@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impact Merge 2048</title>
+</head>
+<body>
+  <div id="app">
+    <aside class="hud">
+      <p class="eyebrow">Three.js + Physics + Liquid Merge</p>
+      <h1>Impact Merge 2048</h1>
+      <p class="summary">
+        固定俯视角的真实 3D 2048。移动由键盘控制，合并前先发生物理碰撞，再触发液体融合。
+      </p>
+
+      <div class="stats">
+        <section class="stat-card">
+          <span>Score</span>
+          <strong id="score">0</strong>
+        </section>
+        <section class="stat-card">
+          <span>Best</span>
+          <strong id="best">0</strong>
+        </section>
+      </div>
+
+      <div class="actions">
+        <button id="restart" type="button">重新开始</button>
+        <p>控制方式: 方向键 / WASD</p>
+      </div>
+    </aside>
+
+    <main class="viewport-shell">
+      <div id="viewport" class="viewport" aria-label="3D 2048 board"></div>
+
+      <section id="overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <p id="overlay-tag" class="overlay-tag"></p>
+          <h2 id="overlay-title"></h2>
+          <p id="overlay-body"></p>
+          <div class="overlay-actions">
+            <button id="continue" type="button">继续游戏</button>
+            <button id="overlay-restart" type="button">再来一局</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/app3d.js"></script>
+</body>
+</html>

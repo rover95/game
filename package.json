@@ -1,0 +1,14 @@
+{
+  "name": "impact-merge-2048",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "three": "^0.183.2",
+    "vite": "^8.0.3"
+  }
+}
