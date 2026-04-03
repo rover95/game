@@ -6,7 +6,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 const BOARD_SIZE = 4;
 const CELL_SPACING = 1.52;
 const TILE_SIZE = 1.05;
-const TILE_HEIGHT = 0.62;
+const TILE_HEIGHT = 0.22;
 const STACK_STEP = TILE_HEIGHT * 1.04;
 const STACK_RIGID_THRESHOLD = 4;
 const BOARD_THICKNESS = 0.7;
@@ -17,6 +17,10 @@ const SHADOW_MAP_SIZE = 1024;
 const MERGE_DROP_HEIGHT = 1.35;
 const DROPLET_COUNT = 5;
 const BEST_SCORE_KEY = "impact-merge-2048-best";
+const BASE_CAMERA_Y = 8.8;
+const BASE_CAMERA_Z = 5.8;
+const BASE_LOOK_AT_Y = 0.3;
+const POST_64_STACK_INCREMENT = 16;
 
 const viewportEl = document.getElementById("viewport");
 const scoreEl = document.getElementById("score");
@@ -53,8 +57,8 @@ scene.background = new THREE.Color("#071119");
 scene.fog = new THREE.FogExp2("#071119", 0.06);
 
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-camera.position.set(0, 8.8, 5.8);
-camera.lookAt(0, 0.3, 0);
+camera.position.set(0, BASE_CAMERA_Y, BASE_CAMERA_Z);
+camera.lookAt(0, BASE_LOOK_AT_Y, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
@@ -79,25 +83,53 @@ worldRoot.add(effectsGroup);
 worldRoot.add(dropletsGroup);
 
 const boardWidth = (BOARD_SIZE - 1) * CELL_SPACING + TILE_SIZE + BOARD_PADDING * 2;
-const tileGeometry = new RoundedBoxGeometry(TILE_SIZE, TILE_HEIGHT, TILE_SIZE, 6, 0.16);
-const slotGeometry = new RoundedBoxGeometry(TILE_SIZE * 1.02, 0.18, TILE_SIZE * 1.02, 4, 0.14);
-const boardGeometry = new RoundedBoxGeometry(boardWidth, BOARD_THICKNESS, boardWidth, 10, 0.26);
+const tileGeometry = new RoundedBoxGeometry(TILE_SIZE, TILE_HEIGHT, TILE_SIZE, 5, 0.08);
+const slotGeometry = new RoundedBoxGeometry(TILE_SIZE * 1.02, 0.18, TILE_SIZE * 1.02, 4, 0.09);
+const boardGeometry = new RoundedBoxGeometry(boardWidth, BOARD_THICKNESS, boardWidth, 10, 0.18);
 const shadowGeometry = new THREE.CircleGeometry(TILE_SIZE * 0.48, 18);
 const dropletGeometry = new THREE.SphereGeometry(0.05, 10, 10);
-const STACK_VISUAL_STEP = TILE_HEIGHT * 0.56;
-const MAX_RENDER_STACK_LAYERS = 6;
+const labelGeometry = new THREE.PlaneGeometry(TILE_SIZE * 0.66, TILE_SIZE * 0.66);
+const STACK_VISUAL_STEP = TILE_HEIGHT * 0.9;
+const MAX_RENDER_STACK_LAYERS = 256;
 
 /**
- * Clamps logical stack counts into the number of rendered cube slices.
- * Param: `stackCount` is the logical merge stack size carried by one tile.
+ * Converts a tile value into the tower height units used by stacked rendering.
+ * Param: `value` must be a positive power-of-two tile number.
  */
-const getVisibleLayerCount = (stackCount = 1) => Math.min(Math.max(stackCount, 1), MAX_RENDER_STACK_LAYERS);
+const getStackCountForValue = (value = 2) => {
+  if (value <= 64) {
+    return Math.max(1, value / 2);
+  }
+
+  return 32 + (Math.log2(value) - 6) * POST_64_STACK_INCREMENT;
+};
+
+/**
+ * Clamps tower units into the number of rendered cube slices.
+ * Param: `stackCount` is the visible tower unit count for one tile.
+ */
+const getVisibleLayerCount = (stackCount = 1) => Math.min(Math.max(Math.round(stackCount), 1), MAX_RENDER_STACK_LAYERS);
 
 /**
  * Returns the visible tower height used by labels, staging, and squash effects.
  * Param: `stackCount` is the logical merge stack size carried by one tile.
  */
 const getTowerHeight = (stackCount = 1) => TILE_HEIGHT + (getVisibleLayerCount(stackCount) - 1) * STACK_VISUAL_STEP;
+
+/**
+ * Returns the tallest visible tower height in the current committed state.
+ * Param: `tiles` is the canonical logical tile collection for one board state.
+ */
+const getTallestTowerHeight = (tiles) => {
+  if (!tiles?.length) {
+    return TILE_HEIGHT;
+  }
+
+  return tiles.reduce(
+    (maxHeight, tile) => Math.max(maxHeight, getTowerHeight(tile.stackCount ?? 1)),
+    TILE_HEIGHT,
+  );
+};
 
 /**
  * Builds one rounded cube slice for a stacked tile actor.
@@ -188,8 +220,8 @@ const buildCellStackSizeMap = (tiles) => tiles.reduce((sizes, tile) => {
  */
 const getPalette = (value) => {
   const fixed = {
-    2: { body: "#efe8dd", edge: "#fffef8", label: "#46372c", emissive: "#6c584a", liquid: "#f8efe1" },
-    4: { body: "#f1dbbd", edge: "#fff5e2", label: "#473527", emissive: "#79624b", liquid: "#f6dec0" },
+    2: { body: "#d9e7f4", edge: "#f7fbff", label: "#233341", emissive: "#5c7285", liquid: "#e4eef8" },
+    4: { body: "#f2d29b", edge: "#fff0d0", label: "#4c3418", emissive: "#8d6b35", liquid: "#f5dfb7" },
     8: { body: "#f4b176", edge: "#ffd5aa", label: "#2d1808", emissive: "#ad6a2c", liquid: "#f6c08e" },
     16: { body: "#f0885f", edge: "#ffc29e", label: "#fff6ef", emissive: "#cc5f36", liquid: "#f5a07f" },
     32: { body: "#ea6657", edge: "#ff9b92", label: "#fff6f4", emissive: "#d44d40", liquid: "#ee7d6d" },
@@ -303,16 +335,21 @@ const createTileActor = (tile, appearMode = "idle") => {
     layerMeshes.push(layer);
   }
 
-  const label = new THREE.Sprite(
-    new THREE.SpriteMaterial({
+  const label = new THREE.Mesh(
+    labelGeometry,
+    new THREE.MeshBasicMaterial({
       map: getLabelTexture(tile.value, palette.label),
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+      side: THREE.DoubleSide,
     }),
   );
-  label.scale.set(0.74, 0.74, 0.74);
-  label.renderOrder = 10;
+  label.rotation.x = -Math.PI / 2;
+  label.renderOrder = 2;
 
   const shadow = new THREE.Mesh(
     shadowGeometry,
@@ -342,14 +379,12 @@ const createTileActor = (tile, appearMode = "idle") => {
 };
 
 /**
- * Adjusts tower height, slice count, and top label placement for one logical tile.
+ * Adjusts tower height, slice count, and top-surface label placement for one logical tile.
  * Params: `actor` is a tile render actor, `stackCount` is its logical merged layer count.
  */
 const updateActorStackVisual = (actor, stackCount = 1) => {
   const visibleLayers = getVisibleLayerCount(stackCount);
-  const towerHeight = getTowerHeight(stackCount);
-  const widthBoost = Math.min((stackCount - 1) * 0.02, 0.12);
-  const labelBoost = 1 + Math.min((stackCount - 1) * 0.07, 0.35);
+  const towerTop = (visibleLayers - 1) * STACK_VISUAL_STEP + TILE_HEIGHT * 0.5;
 
   while (actor.layerMeshes.length < visibleLayers) {
     const layer = createStackLayer(actor.bodyMaterial, actor.edgeMaterial, actor.layerMeshes.length);
@@ -366,11 +401,10 @@ const updateActorStackVisual = (actor, stackCount = 1) => {
     layer.edgeMesh.position.y = layer.tileMesh.position.y + 0.02;
   });
 
-  actor.stackRoot.scale.set(1 + widthBoost, 1, 1 + widthBoost);
-  actor.label.scale.set(0.74 * labelBoost, 0.74 * labelBoost, 0.74 * labelBoost);
-  actor.label.position.set(0, towerHeight * 0.72 + 0.36, 0);
+  actor.stackRoot.scale.set(1, 1, 1);
+  actor.label.position.set(0, towerTop + 0.008, 0);
   actor.shadow.visible = true;
-  actor.shadow.scale.setScalar(1.12 + widthBoost * 0.6);
+  actor.shadow.scale.setScalar(1.12);
 };
 
 /**
@@ -428,7 +462,7 @@ const createTile = (id, value, row, col, flags = {}) => ({
   value,
   row,
   col,
-  stackCount: flags.stackCount ?? 1,
+  stackCount: flags.stackCount ?? getStackCountForValue(value),
   justSpawned: Boolean(flags.justSpawned),
   justMerged: Boolean(flags.justMerged),
 });
@@ -494,7 +528,7 @@ const addRandomTile = (sourceState) => {
     nextId: sourceState.nextId + 1,
     tiles: [
       ...sourceState.tiles,
-      createTile(sourceState.nextId, value, cell.row, cell.col, { stackCount: 1, justSpawned: true }),
+      createTile(sourceState.nextId, value, cell.row, cell.col, { justSpawned: true }),
     ],
   };
 };
@@ -602,7 +636,6 @@ const buildMovePlan = (sourceState, direction) => {
 
       if (next && next.tile.value === current.tile.value) {
         const mergedValue = current.tile.value * 2;
-        const mergedStackCount = (current.tile.stackCount ?? 1) + (next.tile.stackCount ?? 1);
 
         moveEntries.push({
           id: current.tile.id,
@@ -625,7 +658,6 @@ const buildMovePlan = (sourceState, direction) => {
           direction,
         });
         resultTiles.push(createTile(nextId, mergedValue, target.row, target.col, {
-          stackCount: mergedStackCount,
           justMerged: true,
         }));
 
@@ -642,7 +674,7 @@ const buildMovePlan = (sourceState, direction) => {
           toCol: target.col,
         });
         resultTiles.push(createTile(current.tile.id, current.tile.value, target.row, target.col, {
-          stackCount: current.tile.stackCount ?? 1,
+          stackCount: getStackCountForValue(current.tile.value),
         }));
         sourceIndex += 1;
       }
@@ -906,18 +938,15 @@ const startStackMergeEffect = ({ baseActor, fallingActor, targetPosition }) => (
     topTarget.y += getTowerHeight(baseActor.tile.stackCount ?? 1);
 
     addTween({
-      duration: 0.08,
+      duration: 0.09,
       easing: (value) => 1 - (1 - value) ** 3,
       onUpdate: (progress) => {
         baseActor.group.position.lerpVectors(baseStart, bottomTarget, progress);
         fallingActor.group.position.lerpVectors(fallingStart, topTarget, progress);
-
-        const settle = Math.sin(progress * Math.PI);
-        baseActor.group.scale.set(1 + settle * 0.03, 1 - settle * 0.06, 1 + settle * 0.03);
-        fallingActor.group.scale.set(1 - settle * 0.04, 1 + settle * 0.05, 1 - settle * 0.04);
+        fallingActor.group.position.y += Math.sin(progress * Math.PI) * 0.04;
       },
     }).then(() => addTween({
-      duration: 0.08,
+      duration: 0.06,
       onUpdate: () => {
         baseActor.group.position.copy(bottomTarget);
         fallingActor.group.position.copy(topTarget);
@@ -1339,6 +1368,23 @@ const updateStageImpulse = (delta) => {
 };
 
 /**
+ * Raises the fixed overhead camera as towers grow so tall stacks stay framed.
+ * Param: `delta` is the current frame delta time in seconds.
+ */
+const updateCameraFraming = (delta) => {
+  const tallestHeight = getTallestTowerHeight(state?.tiles ?? []);
+  const extraHeight = Math.max(tallestHeight - TILE_HEIGHT * 3.2, 0);
+  const targetY = BASE_CAMERA_Y + extraHeight * 1.7;
+  const targetZ = BASE_CAMERA_Z + extraHeight * 0.55;
+  const lookAtY = BASE_LOOK_AT_Y + extraHeight * 0.38;
+  const blend = 1 - Math.exp(-delta * 6);
+
+  camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, blend);
+  camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, blend);
+  camera.lookAt(0, lookAtY, 0);
+};
+
+/**
  * Runs one full 2048 move, coordinating deterministic logic with render and physics effects.
  * Param: `direction` must be one of the normalized movement directions.
  */
@@ -1450,6 +1496,7 @@ const renderFrame = () => {
   updateMergeSimulations(delta);
   updateDroplets(delta);
   updateStageImpulse(delta);
+  updateCameraFraming(delta);
   renderer.render(scene, camera);
 };
 
