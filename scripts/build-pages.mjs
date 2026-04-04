@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,33 +24,28 @@ const copyDir = (source, target) => {
   cpSync(source, target, { recursive: true });
 };
 
-const ensureGameStylesheet = (gameRootDir) => {
-  const htmlPath = path.join(gameRootDir, "index.html");
-  const cssPath = path.join(gameRootDir, "style.css");
-  const sourceCssPath = path.join(rootDir, "games", "2048", "style.css");
+const resetOutputDir = (targetDir) => {
+  try {
+    rmSync(targetDir, { recursive: true, force: true });
+  } catch (error) {
+    if (error.code !== "EBUSY" || !existsSync(targetDir)) {
+      throw error;
+    }
 
-  if (!existsSync(cssPath)) {
-    cpSync(sourceCssPath, cssPath);
+    for (const entry of readdirSync(targetDir)) {
+      rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+    }
   }
 
-  const html = readFileSync(htmlPath, "utf8");
-  if (html.includes('href="./style.css"')) {
-    return;
-  }
-
-  const patchedHtml = html.replace(
-    "<title>Impact Merge 2048</title>",
-    '<title>Impact Merge 2048</title>\n  <link rel="stylesheet" href="./style.css">',
-  );
-  writeFileSync(htmlPath, patchedHtml, "utf8");
+  mkdirSync(targetDir, { recursive: true });
 };
 
-rmSync(outputDir, { recursive: true, force: true });
-mkdirSync(outputDir, { recursive: true });
+resetOutputDir(outputDir);
 copyDir(siteDir, outputDir);
 
 const gameEntries = [
   { slug: "2048" },
+  { slug: "siege" },
 ];
 
 for (const game of gameEntries) {
@@ -64,5 +59,4 @@ for (const game of gameEntries) {
 
   const targetDir = path.join(outputDir, "games", game.slug);
   copyDir(gameDistDir, targetDir);
-  ensureGameStylesheet(targetDir);
 }

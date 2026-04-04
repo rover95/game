@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Siege Shot</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="hud">
+      <p class="eyebrow">Matter.js / Sling / Destruction</p>
+      <h1>Siege Shot</h1>
+      <p class="summary">
+        用三种不同弹体把建筑结构彻底撞散。拖拽弹弓蓄力，选择合适的球种，清空每个预设结构里的核心目标。
+      </p>
+
+      <section class="stats" aria-label="游戏统计">
+        <article class="stat-card">
+          <span>Score</span>
+          <strong id="score">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>Targets</span>
+          <strong id="targets">0 / 0</strong>
+        </article>
+        <article class="stat-card">
+          <span>Blocks</span>
+          <strong id="blocks">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>Shots</span>
+          <strong id="shots">0</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>弹药</h2>
+          <span id="ammo-total" class="pill">0</span>
+        </div>
+        <div class="ammo-grid">
+          <button type="button" class="ammo-card" data-projectile-type="heavy">
+            <span class="ammo-card__label">超重慢速球</span>
+            <span class="ammo-card__meta">高质量 / 低初速 / 破底座</span>
+            <strong id="ammo-heavy">0</strong>
+          </button>
+          <button type="button" class="ammo-card" data-projectile-type="swift">
+            <span class="ammo-card__label">超快轻质球</span>
+            <span class="ammo-card__meta">高初速 / 低质量 / 穿透薄层</span>
+            <strong id="ammo-swift">0</strong>
+          </button>
+          <button type="button" class="ammo-card" data-projectile-type="blast">
+            <span class="ammo-card__label">碰撞爆炸球</span>
+            <span class="ammo-card__meta">命中爆裂 / 冲击波 / 清理簇拥结构</span>
+            <strong id="ammo-blast">0</strong>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>建筑预设</h2>
+          <span id="preset-name" class="pill">-</span>
+        </div>
+        <div class="preset-list">
+          <button type="button" class="preset-chip" data-preset-index="0">Sky Gate</button>
+          <button type="button" class="preset-chip" data-preset-index="1">Needle Keep</button>
+          <button type="button" class="preset-chip" data-preset-index="2">Domino Lab</button>
+          <button type="button" class="preset-chip" data-preset-index="3">Citadel Stack</button>
+        </div>
+      </section>
+
+      <section class="panel panel--compact">
+        <div class="actions">
+          <button id="restart" type="button">重置当前预设</button>
+          <button id="next-preset" type="button" class="button-secondary">切到下一个预设</button>
+        </div>
+        <p class="hint">
+          操作: 在弹弓处按住并拖拽蓄力，松开发射。键盘可用 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 切球，<kbd>R</kbd> 重开，<kbd>N</kbd> 切预设。
+        </p>
+      </section>
+    </aside>
+
+    <main class="stage-shell">
+      <canvas id="stage" class="stage" aria-label="物理投射游戏画布"></canvas>
+      <section id="result" class="result hidden" aria-live="polite">
+        <div class="result__card">
+          <p id="result-tag" class="result__tag"></p>
+          <h2 id="result-title"></h2>
+          <p id="result-body"></p>
+          <div class="actions">
+            <button id="result-restart" type="button">再打一轮</button>
+            <button id="result-next" type="button" class="button-secondary">下个预设</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
