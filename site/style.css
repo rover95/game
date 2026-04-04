@@ -1,0 +1,157 @@
+:root {
+  color-scheme: dark;
+  --bg: #061017;
+  --panel: rgba(10, 18, 26, 0.74);
+  --panel-line: rgba(167, 228, 255, 0.1);
+  --text: #edf7ff;
+  --muted: rgba(223, 240, 252, 0.7);
+  --accent: #8ce7ff;
+  --accent-strong: #4fd1f3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", "PingFang SC", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(62, 164, 204, 0.22), transparent 26%),
+    radial-gradient(circle at 82% 14%, rgba(127, 226, 255, 0.16), transparent 22%),
+    radial-gradient(circle at 50% 82%, rgba(255, 152, 118, 0.18), transparent 28%),
+    linear-gradient(155deg, #02070b 0%, #071118 54%, #04070b 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black 28%, transparent 82%);
+}
+
+.hub {
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) 0;
+}
+
+.hero {
+  max-width: 720px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 7vw, 4.8rem);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+}
+
+.summary {
+  margin: 18px 0 0;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.08rem);
+  line-height: 1.8;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.game-card {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--panel-line);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 18%),
+    var(--panel);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+}
+
+.game-card__tag {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.game-card h2 {
+  margin: 10px 0 0;
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+}
+
+.game-card__meta p:last-child {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.game-card__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  width: fit-content;
+  padding: 0 18px;
+  border-radius: 999px;
+  color: #041018;
+  text-decoration: none;
+  font-weight: 700;
+  background: linear-gradient(135deg, #aef0ff, #5fd4f4);
+  box-shadow: 0 14px 28px rgba(95, 212, 244, 0.24);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.game-card__link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(95, 212, 244, 0.28);
+}
+
+.game-card__link:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 640px) {
+  .hub {
+    width: min(100% - 24px, 1080px);
+    padding: 22px 0 28px;
+  }
+
+  .game-card {
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .game-card__link {
+    width: 100%;
+  }
+}
