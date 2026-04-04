@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,6 +24,27 @@ const copyDir = (source, target) => {
   cpSync(source, target, { recursive: true });
 };
 
+const ensureGameStylesheet = (gameRootDir) => {
+  const htmlPath = path.join(gameRootDir, "index.html");
+  const cssPath = path.join(gameRootDir, "style.css");
+  const sourceCssPath = path.join(rootDir, "games", "2048", "style.css");
+
+  if (!existsSync(cssPath)) {
+    cpSync(sourceCssPath, cssPath);
+  }
+
+  const html = readFileSync(htmlPath, "utf8");
+  if (html.includes('href="./style.css"')) {
+    return;
+  }
+
+  const patchedHtml = html.replace(
+    "<title>Impact Merge 2048</title>",
+    '<title>Impact Merge 2048</title>\n  <link rel="stylesheet" href="./style.css">',
+  );
+  writeFileSync(htmlPath, patchedHtml, "utf8");
+};
+
 rmSync(outputDir, { recursive: true, force: true });
 mkdirSync(outputDir, { recursive: true });
 copyDir(siteDir, outputDir);
@@ -41,5 +62,7 @@ for (const game of gameEntries) {
     throw new Error(`未找到构建输出: ${gameDistDir}`);
   }
 
-  copyDir(gameDistDir, path.join(outputDir, "games", game.slug));
+  const targetDir = path.join(outputDir, "games", game.slug);
+  copyDir(gameDistDir, targetDir);
+  ensureGameStylesheet(targetDir);
 }
