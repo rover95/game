@@ -1,4 +1,3 @@
-import "./style.css";
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
