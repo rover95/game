@@ -1,14 +1,13 @@
 {
-  "name": "impact-merge-2048",
+  "name": "game-hub",
   "private": true,
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
-  },
-  "dependencies": {
-    "cannon-es": "^0.20.0",
-    "three": "^0.183.2",
-    "vite": "^8.0.3"
+    "dev": "npm --prefix games/2048 run dev",
+    "build": "npm --prefix games/2048 run build",
+    "preview": "npm --prefix games/2048 run preview",
+    "dev:2048": "npm --prefix games/2048 run dev",
+    "build:2048": "npm --prefix games/2048 run build",
+    "preview:2048": "npm --prefix games/2048 run preview",
+    "install:2048": "npm --prefix games/2048 install"
   }
 }

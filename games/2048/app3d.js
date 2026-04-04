@@ -448,6 +448,14 @@ const buildCellStackSizeMap = (tiles) => tiles.reduce((sizes, tile) => {
   return sizes;
 }, new Map());
 
+const saturateColorStyle = (style, amount = 0.06) => {
+  const color = new THREE.Color(style);
+  const hsl = {};
+  color.getHSL(hsl);
+  color.setHSL(hsl.h, THREE.MathUtils.clamp(hsl.s + amount, 0, 1), hsl.l);
+  return color.getStyle();
+};
+
 /**
  * Maps tile values to the palette used by solid meshes, labels, and liquid effects.
  * Usage boundary: supports arbitrary powers of two beyond 2048 with a generated fallback hue.
@@ -468,7 +476,13 @@ const getPalette = (value) => {
   };
 
   if (fixed[value]) {
-    return fixed[value];
+    return {
+      body: saturateColorStyle(fixed[value].body, 0.17),
+      edge: saturateColorStyle(fixed[value].edge, 0.04),
+      label: fixed[value].label,
+      emissive: saturateColorStyle(fixed[value].emissive, 0.08),
+      liquid: saturateColorStyle(fixed[value].liquid, 0.06),
+    };
   }
 
   const power = Math.log2(value);
@@ -476,11 +490,11 @@ const getPalette = (value) => {
   const hue = THREE.MathUtils.lerp(8, 32, (Math.sin((power - 11) * 0.8) * 0.5 + 0.5) * 0.35 + (1 - warmth) * 0.65);
   const lightness = THREE.MathUtils.lerp(0.56, 0.48, warmth);
   return {
-    body: new THREE.Color().setHSL(hue / 360, 0.78, lightness).getStyle(),
-    edge: new THREE.Color().setHSL(hue / 360, 0.86, Math.min(lightness + 0.16, 0.78)).getStyle(),
+    body: new THREE.Color().setHSL(hue / 360, 0.82, lightness).getStyle(),
+    edge: new THREE.Color().setHSL(hue / 360, 0.89, Math.min(lightness + 0.16, 0.78)).getStyle(),
     label: "#fff3ef",
-    emissive: new THREE.Color().setHSL(hue / 360, 0.74, Math.max(lightness - 0.18, 0.24)).getStyle(),
-    liquid: new THREE.Color().setHSL(hue / 360, 0.82, Math.min(lightness + 0.08, 0.72)).getStyle(),
+    emissive: new THREE.Color().setHSL(hue / 360, 0.79, Math.max(lightness - 0.18, 0.24)).getStyle(),
+    liquid: new THREE.Color().setHSL(hue / 360, 0.86, Math.min(lightness + 0.08, 0.72)).getStyle(),
   };
 };
 
@@ -524,7 +538,7 @@ const getLabelTexture = (value, color) => {
 const createBoard = (size = currentBoardSize) => {
   clearBoard();
   const boardWidth = getBoardWidth(size);
-  const boardGeometry = new RoundedBoxGeometry(boardWidth, BOARD_THICKNESS, boardWidth, 10, 0.18);
+  const boardGeometry = new RoundedBoxGeometry(boardWidth, BOARD_THICKNESS, boardWidth, 10, 0.10);
   const boardMesh = new THREE.Mesh(
     boardGeometry,
     new THREE.MeshStandardMaterial({ color: "#12313d", roughness: 0.44, metalness: 0.18 }),
