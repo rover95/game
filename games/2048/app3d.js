@@ -47,6 +47,7 @@ const tweens = [];
 const mergeSimulations = [];
 const stageLighting = {};
 let audioContext = null;
+let audioPrimed = false;
 
 let state = null;
 let inputLocked = false;
@@ -59,6 +60,13 @@ let activeDebugPreset = null;
 let currentStateFactory = null;
 let queuedDirection = null;
 let skipAnimationsRequested = false;
+let swipePointerId = null;
+let swipeStartX = 0;
+let swipeStartY = 0;
+let swipeLastX = 0;
+let swipeLastY = 0;
+
+const MIN_SWIPE_DISTANCE = 26;
 
 const directionVectors = {
   left: new THREE.Vector3(-1, 0, 0),
@@ -91,6 +99,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 viewportEl.appendChild(renderer.domElement);
+renderer.domElement.style.touchAction = "none";
 
 const clock = new THREE.Clock();
 
@@ -254,12 +263,55 @@ const ensureAudioContext = () => {
 };
 
 /**
+ * Performs a near-silent user-gesture playback to reliably unlock Web Audio on mobile browsers.
+ * Usage boundary: call only from direct input handlers such as touch, pointer, or keyboard events.
+ */
+const primeAudioContext = () => {
+  const context = ensureAudioContext();
+  if (!context) {
+    return null;
+  }
+
+  if (audioPrimed && context.state === "running") {
+    return context;
+  }
+
+  const now = context.currentTime;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.00001, now);
+  gain.connect(context.destination);
+
+  const oscillator = context.createOscillator();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(440, now);
+  oscillator.connect(gain);
+
+  try {
+    oscillator.start(now);
+    oscillator.stop(now + 0.001);
+    audioPrimed = true;
+  } catch {
+    // Some browsers may reject repeated starts during edge transitions; keep best-effort unlock behavior.
+  }
+
+  return context;
+};
+
+/**
  * Plays a short synthetic merge chime whose tone scales with the merged value.
  * Param: `value` is the final post-merge tile number.
  */
 const playMergeSound = (value) => {
   const context = ensureAudioContext();
-  if (!context || context.state !== "running") {
+  if (!context) {
+    return;
+  }
+
+  if (context.state !== "running") {
+    context.resume().catch(() => {});
+  }
+
+  if (context.state !== "running") {
     return;
   }
 
@@ -2017,8 +2069,162 @@ const handleKeydown = (event) => {
   }
 
   event.preventDefault();
-  ensureAudioContext();
+  primeAudioContext();
   performMove(direction);
+};
+
+const beginSwipeTracking = (pointerId, clientX, clientY) => {
+  primeAudioContext();
+  swipePointerId = pointerId;
+  swipeStartX = clientX;
+  swipeStartY = clientY;
+  swipeLastX = clientX;
+  swipeLastY = clientY;
+};
+
+const updateSwipeTracking = (pointerId, clientX, clientY) => {
+  if (pointerId !== swipePointerId) {
+    return false;
+  }
+
+  swipeLastX = clientX;
+  swipeLastY = clientY;
+  return true;
+};
+
+const finishSwipeTracking = (pointerId) => {
+  if (pointerId !== swipePointerId) {
+    return;
+  }
+
+  const deltaX = swipeLastX - swipeStartX;
+  const deltaY = swipeLastY - swipeStartY;
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+
+  swipePointerId = null;
+
+  if (Math.max(absX, absY) < MIN_SWIPE_DISTANCE) {
+    return;
+  }
+
+  const direction = absX >= absY
+    ? (deltaX < 0 ? "left" : "right")
+    : (deltaY < 0 ? "up" : "down");
+
+  performMove(direction);
+};
+
+const cancelSwipeTracking = (pointerId) => {
+  if (pointerId === swipePointerId) {
+    swipePointerId = null;
+  }
+};
+
+/**
+ * Starts tracking a touch-style swipe on the 3D viewport.
+ * Usage boundary: binds to the renderer canvas and ignores secondary pointers.
+ */
+const handleSwipeStart = (event) => {
+  if (!event.isPrimary) {
+    return;
+  }
+
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  beginSwipeTracking(event.pointerId, event.clientX, event.clientY);
+  renderer.domElement.setPointerCapture?.(event.pointerId);
+};
+
+/**
+ * Updates the tracked swipe coordinates while the primary pointer moves.
+ * Usage boundary: keeps the latest drag endpoint for swipe direction resolution.
+ */
+const handleSwipeMove = (event) => {
+  updateSwipeTracking(event.pointerId, event.clientX, event.clientY);
+};
+
+/**
+ * Resolves the tracked swipe into a move direction once the pointer is released.
+ * Usage boundary: only fires for meaningful drags to avoid accidental taps.
+ */
+const handleSwipeEnd = (event) => {
+  if (event.pointerId !== swipePointerId) {
+    return;
+  }
+
+  renderer.domElement.releasePointerCapture?.(event.pointerId);
+  finishSwipeTracking(event.pointerId);
+};
+
+/**
+ * Cancels the active swipe without triggering a move.
+ * Usage boundary: used for pointer cancellation or interrupted gestures.
+ */
+const handleSwipeCancel = (event) => {
+  if (event.pointerId !== swipePointerId) {
+    return;
+  }
+
+  renderer.domElement.releasePointerCapture?.(event.pointerId);
+  cancelSwipeTracking(event.pointerId);
+};
+
+const handleTouchStart = (event) => {
+  if (swipePointerId !== null || event.changedTouches.length === 0) {
+    return;
+  }
+
+  const touch = event.changedTouches[0];
+  beginSwipeTracking(`touch:${touch.identifier}`, touch.clientX, touch.clientY);
+  event.preventDefault();
+};
+
+const handleTouchMove = (event) => {
+  if (typeof swipePointerId !== "string" || !swipePointerId.startsWith("touch:")) {
+    return;
+  }
+
+  const touchId = Number(swipePointerId.slice(6));
+  const touch = Array.from(event.changedTouches).find((item) => item.identifier === touchId);
+  if (!touch) {
+    return;
+  }
+
+  updateSwipeTracking(swipePointerId, touch.clientX, touch.clientY);
+  event.preventDefault();
+};
+
+const handleTouchEnd = (event) => {
+  if (typeof swipePointerId !== "string" || !swipePointerId.startsWith("touch:")) {
+    return;
+  }
+
+  const touchId = Number(swipePointerId.slice(6));
+  const touch = Array.from(event.changedTouches).find((item) => item.identifier === touchId);
+  if (!touch) {
+    return;
+  }
+
+  updateSwipeTracking(swipePointerId, touch.clientX, touch.clientY);
+  finishSwipeTracking(swipePointerId);
+  event.preventDefault();
+};
+
+const handleTouchCancel = (event) => {
+  if (typeof swipePointerId !== "string" || !swipePointerId.startsWith("touch:")) {
+    return;
+  }
+
+  const touchId = Number(swipePointerId.slice(6));
+  const cancelled = Array.from(event.changedTouches).some((item) => item.identifier === touchId);
+  if (!cancelled) {
+    return;
+  }
+
+  cancelSwipeTracking(swipePointerId);
 };
 
 /**
@@ -2174,34 +2380,42 @@ const init = () => {
   }
 
   restartButtonEl.addEventListener("click", () => {
-    ensureAudioContext();
+    primeAudioContext();
     restartGame();
   });
   overlayRestartButtonEl.addEventListener("click", () => {
-    ensureAudioContext();
+    primeAudioContext();
     restartGame();
   });
   continueButtonEl.addEventListener("click", () => {
-    ensureAudioContext();
+    primeAudioContext();
     state = { ...state, continued: true };
     renderOverlayFromState();
     saveGameState(state);
   });
   debugToggleButtonEl.addEventListener("click", () => {
-    ensureAudioContext();
+    primeAudioContext();
     setDebugMode(!debugMode);
   });
   debugPresetButtonEls.forEach((button) => {
     button.addEventListener("click", () => {
-      ensureAudioContext();
+      primeAudioContext();
       loadDebugPreset(Number(button.dataset.debugPreset));
     });
   });
   boardSizeSelectEl.addEventListener("change", (event) => {
-    ensureAudioContext();
+    primeAudioContext();
     setBoardSize(Number(event.target.value));
   });
-  renderer.domElement.addEventListener("pointerdown", ensureAudioContext, { passive: true });
+  renderer.domElement.addEventListener("pointerdown", primeAudioContext, { passive: true });
+  renderer.domElement.addEventListener("pointerdown", handleSwipeStart, { passive: true });
+  renderer.domElement.addEventListener("pointermove", handleSwipeMove, { passive: true });
+  renderer.domElement.addEventListener("pointerup", handleSwipeEnd, { passive: true });
+  renderer.domElement.addEventListener("pointercancel", handleSwipeCancel, { passive: true });
+  renderer.domElement.addEventListener("touchstart", handleTouchStart, { passive: false });
+  renderer.domElement.addEventListener("touchmove", handleTouchMove, { passive: false });
+  renderer.domElement.addEventListener("touchend", handleTouchEnd, { passive: false });
+  renderer.domElement.addEventListener("touchcancel", handleTouchCancel, { passive: false });
   window.addEventListener("resize", resizeViewport);
   window.addEventListener("keydown", handleKeydown, { passive: false });
   renderer.setAnimationLoop(renderFrame);
