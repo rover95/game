@@ -1,3 +1,21 @@
+const mountStaticStylesheet = () => {
+  if (document.querySelector('link[data-game-style="impact-merge-2048"]')) {
+    return;
+  }
+
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = new URL("./style.css", import.meta.url).href;
+  link.dataset.gameStyle = "impact-merge-2048";
+  document.head.appendChild(link);
+};
+
+if (import.meta.env) {
+  import("./style.css");
+} else {
+  mountStaticStylesheet();
+}
+
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
