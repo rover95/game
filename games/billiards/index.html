@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Corner Run Billiards</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="hud">
+      <p class="eyebrow">Cue / Pocket / Precision</p>
+      <h1>Corner Run</h1>
+      <p class="summary">
+        每局会随机生成若干目标球。拖动台面确定方向，调好力度后点击发射，用尽可能少的杆数清台。
+      </p>
+
+      <section class="stats" aria-label="游戏统计">
+        <article class="stat-card">
+          <span>当前杆数</span>
+          <strong id="strokes">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>剩余球数</span>
+          <strong id="remaining">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>本局目标</span>
+          <strong id="round-size">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>最佳成绩</span>
+          <strong id="best-score">-</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>出杆控制</h2>
+          <span id="phase-pill" class="pill">待命</span>
+        </div>
+
+        <div class="slider-field">
+          <span>力度</span>
+          <strong id="power-value">68%</strong>
+        </div>
+
+        <div class="dial-meta">
+          <span>方向</span>
+          <strong id="angle-value">0°</strong>
+        </div>
+
+        <div class="actions">
+          <button id="fire" type="button">发射</button>
+          <button id="new-round" type="button" class="button-secondary">新一局</button>
+        </div>
+
+        <p class="hint">
+          右键一次进入瞄准模式，右键再次锁定方向进入待发射。此时力量条会在白球上方自动摆动，左键发射。
+        </p>
+      </section>
+
+      <section class="panel panel--compact">
+        <div class="panel__head">
+          <h2>加塞控制</h2>
+          <button id="spin-reset" type="button" class="button-secondary">归中</button>
+        </div>
+        <div class="spin-control">
+          <div id="spin-pad" class="spin-pad" aria-label="加塞控制板">
+            <div id="spin-dot" class="spin-dot"></div>
+          </div>
+          <div class="spin-legend">
+            <span>上旋</span>
+            <span>左塞</span>
+            <span>右塞</span>
+            <span>低杆</span>
+          </div>
+        </div>
+        <p id="spin-value" class="hint">
+          当前: 中杆
+        </p>
+      </section>
+
+      <section class="panel panel--compact">
+        <div class="panel__head">
+          <h2>状态</h2>
+          <span id="speed-pill" class="pill pill--muted">静止</span>
+        </div>
+        <p id="status-text" class="hint">
+          清掉所有彩球即可过关。白球落袋会在停稳后重摆。
+        </p>
+      </section>
+
+      <section class="panel panel--compact">
+        <p class="hint">
+          鼠标: <kbd>右键</kbd> 切换瞄准 / 待发射，<kbd>左键</kbd> 发射。键盘保留 <kbd>←</kbd> <kbd>→</kbd> 微调方向，<kbd>Space</kbd> 发射，<kbd>R</kbd> 新一局。
+        </p>
+      </section>
+    </aside>
+
+    <main class="stage-shell">
+      <canvas id="stage" class="stage" aria-label="台球游戏画布"></canvas>
+
+      <div id="result" class="result hidden" aria-live="polite">
+        <div class="result__card">
+          <p class="result__tag">Rack Cleared</p>
+          <h2 id="result-title">清台成功</h2>
+          <p id="result-copy">
+            你把这一局全部目标球都送进袋口了。
+          </p>
+          <div class="actions">
+            <button id="result-restart" type="button">再来一局</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

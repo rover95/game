@@ -7,7 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const outputDir = path.join(rootDir, "dist");
-const siteDir = path.join(rootDir, "site");
+const rootIndexPath = path.join(rootDir, "index.html");
+const rootStylePath = path.join(rootDir, "style.css");
 const gamesDir = path.join(rootDir, "games");
 const npmCommand = process.platform === "win32" ? "npm" : "npm";
 
@@ -41,11 +42,14 @@ const resetOutputDir = (targetDir) => {
 };
 
 resetOutputDir(outputDir);
-copyDir(siteDir, outputDir);
+copyDir(rootIndexPath, path.join(outputDir, "index.html"));
+copyDir(rootStylePath, path.join(outputDir, "style.css"));
 
 const gameEntries = [
   { slug: "2048" },
   { slug: "siege" },
+  { slug: "dual-front" },
+  { slug: "billiards" },
 ];
 
 for (const game of gameEntries) {

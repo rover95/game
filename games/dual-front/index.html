@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Dual Front Command</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="hud">
+      <p class="eyebrow">Vertical Defense / Ammo Economy</p>
+      <h1>Strata Command</h1>
+      <p class="summary">
+        左侧默认没有武器，要用金币在 8 条防线上创建炮塔；同级炮塔拖拽后可以合并升级。右侧是 5 条垂直火线，点击武器本体就是花金币注弹，武器下方单独负责升级。
+      </p>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>战区读数</h2>
+          <span id="danger-pill" class="pill">稳定</span>
+        </div>
+        <p id="spawn-status" class="hint">
+          陨石层与怪物都只做垂直下落。左侧 8 门炮塔和右侧 5 门武器都只发射垂直子弹，冷色代表低级，暖色代表高级，圣物陨石块固定为金色。
+        </p>
+        <div class="legend">
+          <div class="legend__item">
+            <span class="legend__swatch legend__swatch--normal"></span>
+            <span>普通陨石区</span>
+          </div>
+          <div class="legend__item">
+            <span class="legend__swatch legend__swatch--armor"></span>
+            <span>重甲陨石区</span>
+          </div>
+          <div class="legend__item">
+            <span class="legend__swatch legend__swatch--volatile"></span>
+            <span>爆裂陨石区</span>
+          </div>
+          <div class="legend__item">
+            <span class="legend__swatch legend__swatch--relic"></span>
+            <span>圣物陨石块，击破后掉宝箱</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--compact">
+        <div class="actions">
+          <button id="restart" type="button">重新开始</button>
+        </div>
+        <p class="hint">
+          操作: 点击左侧空槽用金币创建炮塔，拖拽同级炮塔可合并升级。右侧每门武器每秒自产 1 发，点击武器本体花金币注入 5 发，点击武器下方按钮升级。
+        </p>
+      </section>
+    </aside>
+
+    <main class="stage-shell">
+      <canvas id="stage" class="stage" aria-label="双线防守游戏画布"></canvas>
+      <section id="choice-modal" class="choice-modal hidden" aria-live="polite">
+        <div class="choice-modal__card">
+          <p class="choice-modal__tag">Meteor Chest</p>
+          <h2>选择一项强化</h2>
+          <p class="choice-modal__hint">选择期间游戏暂停，增益会立即生效。</p>
+          <div id="choice-list" class="choice-list"></div>
+        </div>
+      </section>
+      <section id="result" class="result hidden" aria-live="polite">
+        <div class="result__card">
+          <p class="result__tag">Run Ended</p>
+          <h2>陨石层压穿防线</h2>
+          <p id="result-text">
+            左侧需要更精准地压掉关键结构，右侧也需要先攒出更高等级火力。
+          </p>
+          <button id="result-restart" type="button">再来一局</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

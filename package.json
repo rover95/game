@@ -12,7 +12,13 @@
     "dev:siege": "npm --prefix games/siege run dev",
     "build:siege": "npm --prefix games/siege run build",
     "preview:siege": "npm --prefix games/siege run preview",
-    "install:siege": "npm --prefix games/siege install"
+    "install:siege": "npm --prefix games/siege install",
+    "dev:dual-front": "npm --prefix games/dual-front run dev",
+    "build:dual-front": "npm --prefix games/dual-front run build",
+    "preview:dual-front": "npm --prefix games/dual-front run preview",
+    "dev:billiards": "npm --prefix games/billiards run dev",
+    "build:billiards": "npm --prefix games/billiards run build",
+    "preview:billiards": "npm --prefix games/billiards run preview"
   },
   "devDependencies": {
     "vite": "^8.0.3"
