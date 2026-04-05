@@ -18,7 +18,10 @@
     "preview:dual-front": "npm --prefix games/dual-front run preview",
     "dev:billiards": "npm --prefix games/billiards run dev",
     "build:billiards": "npm --prefix games/billiards run build",
-    "preview:billiards": "npm --prefix games/billiards run preview"
+    "preview:billiards": "npm --prefix games/billiards run preview",
+    "dev:tower-forge": "npm --prefix games/tower-forge run dev",
+    "build:tower-forge": "npm --prefix games/tower-forge run build",
+    "preview:tower-forge": "npm --prefix games/tower-forge run preview"
   },
   "devDependencies": {
     "vite": "^8.0.3"

@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,12 +44,14 @@ const resetOutputDir = (targetDir) => {
 resetOutputDir(outputDir);
 copyDir(rootIndexPath, path.join(outputDir, "index.html"));
 copyDir(rootStylePath, path.join(outputDir, "style.css"));
+writeFileSync(path.join(outputDir, ".nojekyll"), "");
 
 const gameEntries = [
   { slug: "2048" },
   { slug: "siege" },
   { slug: "dual-front" },
   { slug: "billiards" },
+  { slug: "tower-forge" },
 ];
 
 for (const game of gameEntries) {

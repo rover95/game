@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Tower Forge Frontier</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="topbar">
+      <div class="brand brand--compact">
+        <p class="eyebrow">Grid / Build / Trait / Relic</p>
+        <h1>Tower Forge Frontier</h1>
+        <p class="summary">守住核心，撑过全部 18 波。</p>
+      </div>
+      <div class="battle-strip">
+        <div class="stats">
+          <div class="stat"><span>金币</span><strong id="gold-value">0</strong></div>
+          <div class="stat"><span>经验</span><strong id="exp-value">0 / 0</strong></div>
+          <div class="stat"><span>等级</span><strong id="level-value">1</strong></div>
+          <div class="stat"><span>核心</span><strong id="core-value">0 / 0</strong></div>
+          <div class="stat"><span>波次</span><strong id="wave-value">1 / 18</strong></div>
+        </div>
+        <div class="topbar__bottom">
+          <div class="controls controls--compact">
+            <button id="start-wave-btn" type="button">开始</button>
+            <button id="pause-btn" type="button">暂停</button>
+            <div class="speed-group">
+              <button id="speed-1x-btn" class="is-active" type="button">1x</button>
+              <button id="speed-2x-btn" type="button">2x</button>
+            </div>
+            <button id="restart-btn" type="button">重开</button>
+          </div>
+          <div class="topbar__status">
+            <span id="phase-pill" class="panel__tag">准备阶段</span>
+            <p id="wave-summary" class="hint"></p>
+            <p id="prep-timer" class="hint hint--strong"></p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <main class="stage-shell">
+        <section class="panel panel--stage">
+          <canvas id="game-canvas" width="824" height="544" aria-label="塔防游戏画布"></canvas>
+          <div id="selection-action-overlay" class="selection-action-overlay hidden">
+            <button id="upgrade-btn" type="button">升级</button>
+            <button id="sell-btn" type="button">出售</button>
+            <button id="overclock-btn" type="button">超频</button>
+          </div>
+        </section>
+        <section class="panel panel--dock">
+          <div class="panel__head panel__head--compact">
+            <h2>建造栏</h2>
+            <span id="build-hint" class="panel__tag">选择建筑后点击蓝色格子</span>
+          </div>
+          <div id="build-buttons" class="build-grid build-grid--dock"></div>
+        </section>
+      </main>
+
+      <aside class="sidebar sidebar--info">
+        <section class="panel panel--info">
+          <div class="panel__head">
+            <h2>怪物成长</h2>
+            <span class="panel__tag">输入后自行控制</span>
+          </div>
+          <div id="growth-preview" class="tag-list"></div>
+          <div class="tuning-grid">
+            <label class="tuning-field">基础生命倍率<input id="enemy-hp-base-input" type="number" min="0.2" max="20" step="0.05"></label>
+            <label class="tuning-field">每波生命成长 %<input id="enemy-hp-growth-input" type="number" min="0" max="100" step="1"></label>
+            <label class="tuning-field">基础速度倍率<input id="enemy-speed-base-input" type="number" min="0.2" max="4" step="0.05"></label>
+            <label class="tuning-field">每波速度成长 %<input id="enemy-speed-growth-input" type="number" min="0" max="50" step="0.5"></label>
+            <label class="tuning-field">基础刷新倍率<input id="enemy-spawn-base-input" type="number" min="0.2" max="3" step="0.05"></label>
+            <label class="tuning-field">每波刷新压缩 %<input id="enemy-spawn-growth-input" type="number" min="0" max="20" step="0.5"></label>
+            <label class="tuning-field">每波护甲追加<input id="enemy-armor-growth-input" type="number" min="0" max="0.08" step="0.005"></label>
+            <label class="tuning-field">精英生命倍率<input id="elite-hp-mult-input" type="number" min="0.2" max="10" step="0.05"></label>
+            <label class="tuning-field">Boss生命倍率<input id="boss-hp-mult-input" type="number" min="0.2" max="20" step="0.1"></label>
+          </div>
+          <div class="controls controls--compact controls--stacked">
+            <button id="apply-growth-btn" type="button">应用到后续波次</button>
+            <button id="apply-growth-reset-btn" type="button">应用并重开</button>
+          </div>
+          <p class="hint">刷新倍率越小怪刷得越快。直接应用只影响后续开波与新生成敌人，已在场单位不追溯。</p>
+        </section>
+
+        <section class="panel panel--info">
+          <div class="panel__head">
+            <h2>建筑信息</h2>
+            <span class="panel__tag">选中后查看详情</span>
+          </div>
+          <div id="selection-panel" class="selection-panel">
+            <p class="empty-state">点击地图中的建筑查看详情。</p>
+          </div>
+        </section>
+
+        <section class="panel panel--info">
+          <div class="panel__head">
+            <h2>本局构筑</h2>
+            <span class="panel__tag">永久效果</span>
+          </div>
+          <div id="build-summary" class="tag-list"></div>
+          <div class="subsection">
+            <h3>已选强化</h3>
+            <div id="perk-list" class="mini-list mini-list--scroll"></div>
+          </div>
+          <div class="subsection">
+            <h3>已获饰品</h3>
+            <div id="relic-list" class="mini-list mini-list--scroll"></div>
+          </div>
+        </section>
+
+        <section class="panel panel--info panel--grow">
+          <div class="panel__head">
+            <h2>波次与记录</h2>
+            <span class="panel__tag">最近事件</span>
+          </div>
+          <div class="subsection">
+            <h3>波次预览</h3>
+            <div id="upcoming-wave-panel" class="mini-list mini-list--scroll"></div>
+          </div>
+          <div class="subsection subsection--grow">
+            <h3>战斗记录</h3>
+            <div id="event-log" class="log-list"></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section id="modal-root" class="modal-root hidden" aria-live="polite">
+      <div class="modal-card">
+        <p id="modal-tag" class="modal-tag"></p>
+        <h2 id="modal-title"></h2>
+        <p id="modal-body" class="modal-body"></p>
+        <div id="modal-options" class="choice-grid"></div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

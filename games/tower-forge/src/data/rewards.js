@@ -1,0 +1,32 @@
+export const PLAYER_PERKS = [
+  { id: "mine-yield", kind: "perk", name: "富矿协议", category: "经济流", description: "金矿机产量提升 30%。", effects: [{ type: "mul", key: "mineGoldMult", value: 1.3 }] },
+  { id: "kill-gold", kind: "perk", name: "赏金名录", category: "经济流", description: "所有怪物额外掉落 1 金币。", effects: [{ type: "add", key: "killGoldFlat", value: 1 }] },
+  { id: "wave-fund", kind: "perk", name: "后勤补贴", category: "经济流", description: "每波结算金币奖励提升 35%。", effects: [{ type: "mul", key: "waveRewardGoldMult", value: 1.35 }] },
+  { id: "rapid-cycle", kind: "perk", name: "高频机匣", category: "攻速暴击流", description: "所有攻击塔攻速提升 15%。", effects: [{ type: "mul", key: "attackSpeedMult", value: 1.15 }] },
+  { id: "critical-plan", kind: "perk", name: "瞄准程式", category: "攻速暴击流", description: "暴击率提升 8%。", effects: [{ type: "add", key: "critChance", value: 0.08 }] },
+  { id: "critical-load", kind: "perk", name: "穿甲装药", category: "攻速暴击流", description: "暴击伤害提升 35%。", effects: [{ type: "add", key: "critDamage", value: 0.35 }] },
+  { id: "ember-study", kind: "perk", name: "余烬研究", category: "元素异常流", description: "灼烧伤害提升 35%。", effects: [{ type: "mul", key: "burnDamageMult", value: 1.35 }] },
+  { id: "deep-freeze", kind: "perk", name: "深寒晶格", category: "元素异常流", description: "减速强度额外提高 15%。", effects: [{ type: "add", key: "slowPower", value: 0.15 }] },
+  { id: "conduction-net", kind: "perk", name: "导体编网", category: "元素异常流", description: "电弧基础连锁次数 +1。", effects: [{ type: "add", key: "chainExtra", value: 1 }] },
+  { id: "exploit-state", kind: "perk", name: "失衡猎杀", category: "元素异常流", description: "敌人带异常状态时，额外承受 14% 伤害。", effects: [{ type: "add", key: "statusDamageBonus", value: 0.14 }] },
+  { id: "wide-area", kind: "perk", name: "广域扩散", category: "范围流", description: "范围伤害与爆炸半径扩大 20%。", effects: [{ type: "mul", key: "areaRadiusMult", value: 1.2 }] },
+  { id: "chain-field", kind: "perk", name: "脉冲场域", category: "范围流", description: "链式攻击的跳跃距离扩大 25%。", effects: [{ type: "mul", key: "chainRangeMult", value: 1.25 }] },
+  { id: "formation-bonus", kind: "perk", name: "协同阵列", category: "协同流", description: "相邻建筑每有 1 座，攻击建筑伤害 +6%。", effects: [{ type: "add", key: "adjacencyDamagePerNeighbor", value: 0.06 }] },
+  { id: "beacon-overdrive", kind: "perk", name: "增幅校准", category: "协同流", description: "辅助建筑提供的效果额外提升 30%。", effects: [{ type: "mul", key: "beaconEffectMult", value: 1.3 }] },
+  { id: "combined-arms", kind: "perk", name: "联合火网", category: "协同流", description: "场上每多 1 种建筑类型，全部攻击建筑伤害 +4%。", effects: [{ type: "add", key: "diversityDamagePerType", value: 0.04 }] },
+];
+
+export const RELICS = [
+  { id: "echo-magazine", kind: "relic", name: "回响弹仓", category: "强变化", description: "投射物命中后有 28% 概率追加一次幽灵弹。", effects: [{ type: "add", key: "projectileEchoChance", value: 0.28 }] },
+  { id: "cinder-seed", kind: "relic", name: "燃尽火种", category: "强变化", description: "灼烧叠满时触发一次爆炸。", effects: [{ type: "trait", key: "burnExplodes", value: true }] },
+  { id: "static-crown", kind: "relic", name: "静电冠", category: "强变化", description: "电弧可额外连锁到减速目标。", effects: [{ type: "trait", key: "arcSlowedBonus", value: true }] },
+  { id: "prism", kind: "relic", name: "折射棱镜", category: "强变化", description: "电弧在主目标后额外分裂一次。", effects: [{ type: "trait", key: "arcFork", value: true }] },
+  { id: "gravity-lens", kind: "relic", name: "引力透镜", category: "强变化", description: "被减速或拖延的敌人承受范围伤害提高 28%。", effects: [{ type: "add", key: "controlledAreaTakenBonus", value: 0.28 }] },
+  { id: "gold-furnace", kind: "relic", name: "金币熔炉", category: "强变化", description: "每消耗 160 金币，全体建筑永久增伤 4%。", effects: [{ type: "set", key: "spendDamageThreshold", value: 160 }, { type: "set", key: "spendDamageGain", value: 0.04 }] },
+  { id: "magma-nozzle", kind: "relic", name: "流火喷口", category: "强变化", description: "火焰喷射器射程提升并在路径上留下燃烧区域。", effects: [{ type: "mul", key: "flameRangeMult", value: 1.25 }, { type: "trait", key: "flameTrail", value: true }] },
+  { id: "headhunter-scope", kind: "relic", name: "猎首目镜", category: "强变化", description: "单体塔优先攻击精英/Boss，且对其增伤 35%。", effects: [{ type: "add", key: "focusEliteBonus", value: 0.35 }, { type: "trait", key: "focusElite", value: true }] },
+  { id: "corrosion-belt", kind: "relic", name: "腐蚀弹链", category: "强变化", description: "机枪命中可叠加破甲。", effects: [{ type: "trait", key: "machinegunShred", value: true }] },
+  { id: "frost-coffin", kind: "relic", name: "寒霜棺", category: "强变化", description: "重度减速目标死亡时触发冰爆。", effects: [{ type: "trait", key: "frostNova", value: true }] },
+  { id: "overclock-core", kind: "relic", name: "超频核心", category: "强变化", description: "每波可指定一座建筑，获得一次短时超频强化。", effects: [{ type: "set", key: "overclockChargesPerWave", value: 1 }, { type: "trait", key: "overclock", value: true }] },
+  { id: "loot-magnet", kind: "relic", name: "战利品磁石", category: "强变化", description: "掉落物吸附更快，收集范围更大。", effects: [{ type: "mul", key: "pickupSpeedMult", value: 1.8 }, { type: "add", key: "pickupRadiusBonus", value: 90 }] },
+];

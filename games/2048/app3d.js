@@ -17,6 +17,7 @@ const SHADOW_MAP_SIZE = 1024;
 const MERGE_DROP_HEIGHT = 1.35;
 const BEST_SCORE_KEY_PREFIX = "impact-merge-2048-best";
 const SAVED_GAME_KEY = "impact-merge-2048-session";
+const MAX_UNDO_STEPS = 5;
 const BASE_CAMERA_FOV = 42;
 const BASE_CAMERA_Y = 8.8;
 const BASE_CAMERA_Z = 5.8;
@@ -28,6 +29,7 @@ const MIN_FOG_DENSITY = 0.028;
 const viewportEl = document.getElementById("viewport");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
+const undoButtonEl = document.getElementById("undo");
 const restartButtonEl = document.getElementById("restart");
 const boardSizeSelectEl = document.getElementById("board-size");
 const continueButtonEl = document.getElementById("continue");
@@ -59,6 +61,7 @@ let activeDebugPreset = null;
 let currentStateFactory = null;
 let queuedDirection = null;
 let skipAnimationsRequested = false;
+let undoHistory = [];
 let swipePointerId = null;
 let swipeStartX = 0;
 let swipeStartY = 0;
@@ -831,28 +834,110 @@ const getSettledState = (sourceState) => ({
   })),
 });
 
+const cloneStateSnapshot = (sourceState) => getSettledState(sourceState);
+
+const createPersistedStateSnapshot = (sourceState) => {
+  const snapshot = getSettledState(sourceState);
+  return {
+    size: snapshot.size,
+    score: snapshot.score,
+    best: snapshot.best,
+    won: snapshot.won,
+    continued: snapshot.continued,
+    over: snapshot.over,
+    nextId: snapshot.nextId,
+    tiles: snapshot.tiles.map((tile) => ({
+      id: tile.id,
+      value: tile.value,
+      row: tile.row,
+      col: tile.col,
+      stackCount: tile.stackCount,
+    })),
+  };
+};
+
+const restorePersistedStateSnapshot = (parsed, expectedSize = null) => {
+  if (!BOARD_SIZE_OPTIONS.includes(parsed?.size) || !Array.isArray(parsed?.tiles)) {
+    return null;
+  }
+
+  const size = parsed.size;
+  const limit = size * size;
+  if (
+    (expectedSize !== null && size !== expectedSize) ||
+    !Number.isFinite(parsed.score) ||
+    !Number.isFinite(parsed.best) ||
+    !Number.isFinite(parsed.nextId) ||
+    parsed.score < 0 ||
+    parsed.best < 0 ||
+    parsed.nextId < 1 ||
+    parsed.tiles.length > limit
+  ) {
+    return null;
+  }
+
+  const occupied = new Set();
+  const tiles = [];
+  for (const tile of parsed.tiles) {
+    if (
+      !Number.isInteger(tile?.id) ||
+      !Number.isFinite(tile?.value) ||
+      !Number.isInteger(tile?.row) ||
+      !Number.isInteger(tile?.col) ||
+      tile.row < 0 ||
+      tile.row >= size ||
+      tile.col < 0 ||
+      tile.col >= size ||
+      tile.value < 2
+    ) {
+      return null;
+    }
+
+    const key = getCellKey(tile.row, tile.col);
+    if (occupied.has(key)) {
+      return null;
+    }
+    occupied.add(key);
+
+    tiles.push(createTile(tile.id, tile.value, tile.row, tile.col, {
+      stackCount: Number.isFinite(tile.stackCount) ? tile.stackCount : getStackCountForValue(tile.value),
+    }));
+  }
+
+  return {
+    size,
+    score: parsed.score,
+    best: Math.max(parsed.best, loadBestScore(size)),
+    won: Boolean(parsed.won),
+    continued: Boolean(parsed.continued),
+    over: Boolean(parsed.over),
+    nextId: parsed.nextId,
+    tiles,
+  };
+};
+
+const updateUndoUi = () => {
+  undoButtonEl.textContent = undoHistory.length > 0 ? `退回 (${undoHistory.length})` : "退回";
+  undoButtonEl.disabled = inputLocked || undoHistory.length === 0;
+};
+
+const pushUndoState = (sourceState) => {
+  undoHistory.push(cloneStateSnapshot(sourceState));
+  if (undoHistory.length > MAX_UNDO_STEPS) {
+    undoHistory = undoHistory.slice(-MAX_UNDO_STEPS);
+  }
+};
+
 /**
  * Saves the current playable snapshot so the next page load can restore it.
  * Param: `sourceState` must already be a committed gameplay state.
  */
 const saveGameState = (sourceState) => {
   try {
-    const snapshot = getSettledState(sourceState);
+    const snapshot = createPersistedStateSnapshot(sourceState);
     window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify({
-      size: snapshot.size,
-      score: snapshot.score,
-      best: snapshot.best,
-      won: snapshot.won,
-      continued: snapshot.continued,
-      over: snapshot.over,
-      nextId: snapshot.nextId,
-      tiles: snapshot.tiles.map((tile) => ({
-        id: tile.id,
-        value: tile.value,
-        row: tile.row,
-        col: tile.col,
-        stackCount: tile.stackCount,
-      })),
+      ...snapshot,
+      history: undoHistory.map((entry) => createPersistedStateSnapshot(entry)),
     }));
   } catch (error) {
     // Persistence is optional and should not interrupt play.
@@ -871,62 +956,27 @@ const loadSavedGame = () => {
     }
 
     const parsed = JSON.parse(raw);
-    if (!BOARD_SIZE_OPTIONS.includes(parsed?.size) || !Array.isArray(parsed?.tiles)) {
+    const restoredState = restorePersistedStateSnapshot(parsed);
+    if (!restoredState) {
       return null;
     }
 
-    const size = parsed.size;
-    const limit = size * size;
-    if (
-      !Number.isFinite(parsed.score) ||
-      !Number.isFinite(parsed.best) ||
-      !Number.isFinite(parsed.nextId) ||
-      parsed.score < 0 ||
-      parsed.best < 0 ||
-      parsed.nextId < 1 ||
-      parsed.tiles.length > limit
-    ) {
-      return null;
-    }
-
-    const occupied = new Set();
-    const tiles = [];
-    for (const tile of parsed.tiles) {
-      if (
-        !Number.isInteger(tile?.id) ||
-        !Number.isFinite(tile?.value) ||
-        !Number.isInteger(tile?.row) ||
-        !Number.isInteger(tile?.col) ||
-        tile.row < 0 ||
-        tile.row >= size ||
-        tile.col < 0 ||
-        tile.col >= size ||
-        tile.value < 2
-      ) {
+    const history = [];
+    if (parsed.history !== undefined) {
+      if (!Array.isArray(parsed.history)) {
         return null;
       }
 
-      const key = getCellKey(tile.row, tile.col);
-      if (occupied.has(key)) {
-        return null;
+      for (const entry of parsed.history.slice(-MAX_UNDO_STEPS)) {
+        const restoredEntry = restorePersistedStateSnapshot(entry, restoredState.size);
+        if (!restoredEntry) {
+          return null;
+        }
+        history.push(restoredEntry);
       }
-      occupied.add(key);
-
-      tiles.push(createTile(tile.id, tile.value, tile.row, tile.col, {
-        stackCount: Number.isFinite(tile.stackCount) ? tile.stackCount : getStackCountForValue(tile.value),
-      }));
     }
 
-    return {
-      size,
-      score: parsed.score,
-      best: Math.max(parsed.best, loadBestScore(size)),
-      won: Boolean(parsed.won),
-      continued: Boolean(parsed.continued),
-      over: Boolean(parsed.over),
-      nextId: parsed.nextId,
-      tiles,
-    };
+    return { state: restoredState, history };
   } catch (error) {
     return null;
   }
@@ -1195,9 +1245,14 @@ const buildMovePlan = (sourceState, direction) => {
  * Usage boundary: call only after a committed state change.
  */
 const renderHud = () => {
+  const persistedBest = Math.max(state.best, loadBestScore(state.size));
+  if (persistedBest !== state.best) {
+    state = { ...state, best: persistedBest };
+  }
   scoreEl.textContent = String(state.score);
-  bestEl.textContent = String(state.best);
-  saveBestScore(state.best, state.size);
+  bestEl.textContent = String(persistedBest);
+  saveBestScore(persistedBest, state.size);
+  updateUndoUi();
 };
 
 /**
@@ -2021,7 +2076,9 @@ const performMove = async (direction) => {
     return;
   }
 
+  const previousState = cloneStateSnapshot(state);
   inputLocked = true;
+  updateUndoUi();
   const mergedIds = new Set(plan.mergePairs.flatMap((pair) => pair.sourceIds));
   const moveTweens = plan.moveEntries
     .filter((entry) => !mergedIds.has(entry.id))
@@ -2039,10 +2096,11 @@ const performMove = async (direction) => {
   mergedTiles.forEach((tile, index) => {
     triggerMergedTileFeedback(tile, plan.mergePairs[index]?.direction);
   });
+  state = getSettledState(state);
+  pushUndoState(previousState);
+  inputLocked = false;
   renderHud();
   renderOverlayFromState();
-  inputLocked = false;
-  state = getSettledState(state);
   saveGameState(state);
 };
 
@@ -2051,6 +2109,13 @@ const performMove = async (direction) => {
  * Usage boundary: bind once to `window` during initialization.
  */
 const handleKeydown = (event) => {
+  if (event.key.toLowerCase() === "z" && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    primeAudioContext();
+    applyUndo();
+    return;
+  }
+
   const directionMap = {
     ArrowLeft: "left",
     ArrowRight: "right",
@@ -2241,6 +2306,30 @@ const renderDebugUi = () => {
   });
 };
 
+const restoreBoardState = (nextState) => {
+  tweens.length = 0;
+  mergeSimulations.length = 0;
+  Array.from(tileActors.keys()).forEach(removeTileActor);
+  inputLocked = false;
+  queuedDirection = null;
+  skipAnimationsRequested = false;
+  stageImpulse = 0;
+  state = cloneStateSnapshot(nextState);
+  syncActorsToState(state);
+  renderHud();
+  renderOverlayFromState();
+  saveGameState(state);
+};
+
+const applyUndo = () => {
+  if (inputLocked || undoHistory.length === 0) {
+    return;
+  }
+
+  const previousState = undoHistory.pop();
+  restoreBoardState(previousState);
+};
+
 /**
  * Clears transient simulations and rebuilds the board from the current state factory.
  * Usage boundary: shared by startup, restart, and debug preset swaps.
@@ -2254,6 +2343,7 @@ const restartGame = () => {
   queuedDirection = null;
   skipAnimationsRequested = false;
   stageImpulse = 0;
+  undoHistory = [];
 
   const nextState = (currentStateFactory ?? createInitialState)();
   state = nextState;
@@ -2356,9 +2446,9 @@ const renderFrame = () => {
  * Usage boundary: one-time application bootstrap.
  */
 const init = () => {
-  const restoredState = loadSavedGame();
-  if (restoredState) {
-    currentBoardSize = restoredState.size;
+  const restoredSession = loadSavedGame();
+  if (restoredSession) {
+    currentBoardSize = restoredSession.state.size;
   }
 
   setupStageLighting();
@@ -2367,8 +2457,9 @@ const init = () => {
   currentStateFactory = debugMode ? () => createDebugMergeState(512) : createInitialState;
   activeDebugPreset = debugMode ? "512" : null;
   renderDebugUi();
-  if (restoredState) {
-    state = restoredState;
+  if (restoredSession) {
+    undoHistory = restoredSession.history;
+    state = restoredSession.state;
     syncActorsToState(state);
     renderHud();
     renderOverlayFromState();
@@ -2381,6 +2472,10 @@ const init = () => {
   restartButtonEl.addEventListener("click", () => {
     primeAudioContext();
     restartGame();
+  });
+  undoButtonEl.addEventListener("click", () => {
+    primeAudioContext();
+    applyUndo();
   });
   overlayRestartButtonEl.addEventListener("click", () => {
     primeAudioContext();

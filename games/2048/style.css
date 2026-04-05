@@ -179,6 +179,19 @@ button:active {
   transform: translateY(1px);
 }
 
+button:disabled {
+  cursor: default;
+  color: rgba(4, 16, 24, 0.58);
+  background: linear-gradient(135deg, rgba(174, 240, 255, 0.42), rgba(95, 212, 244, 0.32));
+  box-shadow: none;
+  transform: none;
+}
+
+button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .actions p {
   margin: 0;
   color: var(--muted);
