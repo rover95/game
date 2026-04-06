@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>陨落火雨</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="hud">
+      <p class="eyebrow">Vertical Survival / Ricochet Build</p>
+      <h1>陨落火雨</h1>
+      <p class="summary">点击战场启动自动射击。子弹会在墙壁与目标间反弹，收集经验升级三选一、积攒金币购买波次商店强化，守住基地直到 Boss 波。</p>
+      <section class="panel">
+        <h2>操作</h2>
+        <ul>
+          <li>左键点击：启动自动开火</li>
+          <li>移动鼠标：调整炮台角度</li>
+          <li>Q / E：切换弹药模式（普通 / 穿透）</li>
+          <li>Space：释放主动技能（脉冲清场）</li>
+        </ul>
+      </section>
+      <section class="panel panel--compact">
+        <button id="restart" type="button">重新开始</button>
+      </section>
+    </aside>
+
+    <main class="stage-wrap">
+      <canvas id="stage" width="720" height="1280" aria-label="陨落火雨游戏画布"></canvas>
+      <div class="overlay hud-strip">
+        <span id="wave">波次 1</span>
+        <span id="hp">基地 20/20</span>
+        <span id="gold">金币 0</span>
+        <span id="level">Lv1</span>
+      </div>
+
+      <section id="level-modal" class="modal hidden">
+        <div class="modal__card">
+          <p class="tag">升级</p>
+          <h2>选择一项强化</h2>
+          <div id="level-options" class="cards"></div>
+        </div>
+      </section>
+
+      <section id="shop-modal" class="modal hidden">
+        <div class="modal__card">
+          <p class="tag">商店</p>
+          <h2>波次结算商店</h2>
+          <p class="hint">可购买 1 项后继续，或直接跳过。</p>
+          <div id="shop-options" class="cards"></div>
+          <button id="skip-shop" class="ghost" type="button">跳过商店</button>
+        </div>
+      </section>
+
+      <section id="result-modal" class="modal hidden">
+        <div class="modal__card">
+          <p class="tag">Run Ended</p>
+          <h2 id="result-title">防线失守</h2>
+          <p id="result-text" class="hint"></p>
+          <button id="result-restart" type="button">再来一局</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
