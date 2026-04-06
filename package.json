@@ -24,7 +24,10 @@
     "preview:tower-forge": "npm --prefix games/tower-forge run preview",
     "dev:gomoku": "npm --prefix games/gomoku run dev",
     "build:gomoku": "npm --prefix games/gomoku run build",
-    "preview:gomoku": "npm --prefix games/gomoku run preview"
+    "preview:gomoku": "npm --prefix games/gomoku run preview",
+    "dev:fallen-fire-rain": "npm --prefix games/fallen-fire-rain run dev",
+    "build:fallen-fire-rain": "npm --prefix games/fallen-fire-rain run build",
+    "preview:fallen-fire-rain": "npm --prefix games/fallen-fire-rain run preview"
   },
   "devDependencies": {
     "vite": "^8.0.3"

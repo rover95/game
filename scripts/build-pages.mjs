@@ -53,6 +53,7 @@ const gameEntries = [
   { slug: "billiards" },
   { slug: "tower-forge" },
   { slug: "gomoku" },
+  { slug: "fallen-fire-rain" },
 ];
 
 for (const game of gameEntries) {
