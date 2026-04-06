@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>天枢五子棋</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="panel-shell">
+      <p class="eyebrow">Gomoku / PvP / Search AI</p>
+      <h1>天枢五子棋</h1>
+      <p class="summary">
+        支持本地双人和人机对战。AI 提供多档难度，最高档会结合候选点筛选、局面模式评分和 alpha-beta 搜索来处理攻防。
+      </p>
+
+      <section class="mode-toggle" aria-label="模式切换">
+        <button type="button" class="mode-button is-active" data-mode="ai">人机对战</button>
+        <button type="button" class="mode-button" data-mode="pvp">双人对战</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head">
+          <h2>对局设置</h2>
+          <span id="thinking-pill" class="pill pill--muted">待机</span>
+        </div>
+
+        <label class="field">
+          <span>AI 难度</span>
+          <select id="difficulty">
+            <option value="easy">入门</option>
+            <option value="medium">进阶</option>
+            <option value="hard">困难</option>
+            <option value="master">天元</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>人类执子</span>
+          <select id="human-side">
+            <option value="1">黑棋先手</option>
+            <option value="2">白棋后手</option>
+          </select>
+        </label>
+
+        <div class="actions">
+          <button id="new-game" type="button">新开一局</button>
+          <button id="undo" type="button" class="button-secondary">悔棋</button>
+        </div>
+
+        <p id="status-text" class="hint" aria-live="polite">
+          黑棋先手。点击棋盘交叉点落子。
+        </p>
+      </section>
+
+      <section class="stats" aria-label="对局状态">
+        <article class="stat-card">
+          <span>当前回合</span>
+          <strong id="turn-label">黑棋</strong>
+        </article>
+        <article class="stat-card">
+          <span>对局模式</span>
+          <strong id="mode-label">人机</strong>
+        </article>
+        <article class="stat-card">
+          <span>已落手数</span>
+          <strong id="move-count">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>最近落点</span>
+          <strong id="last-move-label">-</strong>
+        </article>
+      </section>
+
+      <section class="panel panel--compact">
+        <div class="panel__head">
+          <h2>AI 分析</h2>
+          <span id="ai-level-pill" class="pill">入门</span>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span>搜索深度</span>
+            <strong id="ai-depth">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>评估分数</span>
+            <strong id="ai-score">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>搜索节点</span>
+            <strong id="ai-nodes">-</strong>
+          </div>
+          <div class="meta-item">
+            <span>思考耗时</span>
+            <strong id="ai-time">-</strong>
+          </div>
+        </div>
+        <p class="hint">
+          天元难度会优先处理立即胜负手，再做多层攻防搜索；低难度则更快，也更容易出现疏漏。
+        </p>
+      </section>
+
+      <section class="panel panel--compact">
+        <h2>操作说明</h2>
+        <p class="hint">
+          鼠标或触屏直接点击交叉点落子。双人模式下双方轮流操作；人机模式下，悔棋会同时回退最近一轮双方着法。
+        </p>
+      </section>
+    </aside>
+
+    <main class="board-shell">
+      <div class="board-head">
+        <div>
+          <p class="board-head__eyebrow">15 x 15</p>
+          <h2 id="board-title">对局进行中</h2>
+        </div>
+        <div id="turn-chip" class="turn-chip turn-chip--black">黑棋回合</div>
+      </div>
+
+      <div class="canvas-frame">
+        <canvas id="board" aria-label="五子棋棋盘"></canvas>
+        <div id="result" class="result hidden" aria-live="polite">
+          <div class="result__card">
+            <p class="result__tag">Game Result</p>
+            <h3 id="result-title">黑棋获胜</h3>
+            <p id="result-copy">再开一局继续。</p>
+            <div class="actions">
+              <button id="result-restart" type="button">重新开始</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p id="board-tip" class="board-tip">
+        红框会标记最近一步，出现连五后会高亮胜利线。
+      </p>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

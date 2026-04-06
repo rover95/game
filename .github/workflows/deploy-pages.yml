@@ -38,6 +38,7 @@ jobs:
           npm --prefix games/dual-front install
           npm --prefix games/billiards install
           npm --prefix games/tower-forge install
+          npm --prefix games/gomoku install
 
       - name: 构建站点
         run: npm run build
