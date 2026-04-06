@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas 子弹特效演示</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1b2035 0%, #0c1020 45%, #05070f 100%);
+      color: #e9eefc;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+    }
+    .panel {
+      border-right: 1px solid rgba(255,255,255,0.08);
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      background: rgba(8, 11, 20, 0.72);
+      overflow: auto;
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 10px;
+    }
+    p.desc {
+      font-size: 13px;
+      line-height: 1.6;
+      color: rgba(233, 238, 252, 0.76);
+      margin: 0 0 18px;
+    }
+    .grid {
+      display: grid;
+      gap: 10px;
+    }
+    button.effect-btn {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: #fff;
+      cursor: pointer;
+      text-align: left;
+      transition: 180ms ease;
+      font-size: 14px;
+    }
+    button.effect-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.08);
+    }
+    button.effect-btn.active {
+      background: linear-gradient(180deg, rgba(95,135,255,0.3), rgba(95,135,255,0.12));
+      border-color: rgba(126, 161, 255, 0.5);
+      box-shadow: 0 0 0 1px rgba(120, 156, 255, 0.22) inset;
+    }
+    .tips {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      font-size: 12px;
+      line-height: 1.6;
+      color: rgba(233, 238, 252, 0.8);
+    }
+    .stage-wrap {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(8, 11, 20, 0.44);
+      backdrop-filter: blur(8px);
+    }
+    .toolbar .meta {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: rgba(233, 238, 252, 0.82);
+    }
+    .toolbar button {
+      border: none;
+      background: linear-gradient(180deg, #6d8fff, #4e6fe6);
+      color: white;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(78, 111, 230, 0.28);
+    }
+    #stage {
+      width: 100%;
+      height: calc(100vh - 70px);
+      display: block;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(62,88,176,0.12), transparent 35%),
+        radial-gradient(circle at 50% 100%, rgba(255,255,255,0.04), transparent 24%),
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    }
+    @media (max-width: 900px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel { border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      #stage { height: 68vh; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="panel">
+    <h1>Canvas 子弹特效演示</h1>
+    <p class="desc">点击左侧按钮切换子弹类型，画面会自动循环发射。所有效果均使用原生 Canvas 2D 绘制，没有依赖图片贴图。</p>
+    <div class="grid" id="effectList"></div>
+    <div class="tips">
+      <strong>操作说明</strong><br>
+      1. 点击“手动触发”会立即发射一轮。<br>
+      2. 窗口尺寸变化会自动适配。<br>
+      3. 这份 Demo 重点展示特效语言：拖尾、命中环、粒子、连锁、吸附、分裂、反弹与重压波。
+    </div>
+  </aside>
+
+  <main class="stage-wrap">
+    <div class="toolbar">
+      <div class="meta">
+        <span id="currentName">当前：爆裂弹</span>
+        <span id="currentDesc">橙色冲击波与熔岩裂纹弹体</span>
+      </div>
+      <button id="fireBtn">手动触发</button>
+    </div>
+    <canvas id="stage"></canvas>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const effectList = document.getElementById('effectList');
+    const currentName = document.getElementById('currentName');
+    const currentDesc = document.getElementById('currentDesc');
+    const fireBtn = document.getElementById('fireBtn');
+
+    let width = 0;
+    let height = 0;
+    let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const TAU = Math.PI * 2;
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const rand = (min, max) => Math.random() * (max - min) + min;
+    const pick = arr => arr[(Math.random() * arr.length) | 0];
+
+    function glowCircle(x, y, r, color, alpha = 1) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color.replace('ALPHA', (0.9 * alpha).toFixed(3)));
+      g.addColorStop(0.4, color.replace('ALPHA', (0.25 * alpha).toFixed(3)));
+      g.addColorStop(1, color.replace('ALPHA', '0'));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+    }
+
+    function ring(x, y, r, thickness, color, alpha = 1) {
+      ctx.strokeStyle = color.replace('ALPHA', alpha.toFixed(3));
+      ctx.lineWidth = thickness;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.stroke();
+    }
+
+    function lineGlow(x1, y1, x2, y2, width, color, alpha = 1) {
+      ctx.strokeStyle = color.replace('ALPHA', alpha.toFixed(3));
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    class Particle {
+      constructor(opts) { Object.assign(this, opts); }
+      update(dt) {
+        this.life -= dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vx *= this.drag ?? 0.98;
+        this.vy *= this.drag ?? 0.98;
+        this.radius *= this.shrink ?? 0.995;
+        if (this.gravity) this.vy += this.gravity * dt;
+      }
+      draw() {
+        const a = clamp(this.life / this.maxLife, 0, 1) * (this.alpha ?? 1);
+        glowCircle(this.x, this.y, Math.max(0.5, this.radius), this.color, a);
+      }
+      get dead() { return this.life <= 0 || this.radius < 0.25; }
+    }
+
+    class RingWave {
+      constructor(opts) { Object.assign(this, opts); }
+      update(dt) {
+        this.life -= dt;
+        this.radius += this.speed * dt;
+      }
+      draw() {
+        const a = clamp(this.life / this.maxLife, 0, 1);
+        ring(this.x, this.y, this.radius, this.thickness, this.color, a);
+      }
+      get dead() { return this.life <= 0; }
+    }
+
+    class SparkLine {
+      constructor(points, color, life = 0.18, width = 2.5) {
+        this.points = points;
+        this.color = color;
+        this.life = life;
+        this.maxLife = life;
+        this.width = width;
+      }
+      update(dt) { this.life -= dt; }
+      draw() {
+        const a = clamp(this.life / this.maxLife, 0, 1);
+        ctx.strokeStyle = this.color.replace('ALPHA', a.toFixed(3));
+        ctx.lineWidth = this.width;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
+        ctx.stroke();
+      }
+      get dead() { return this.life <= 0; }
+    }
+
+    class TrailGhost {
+      constructor(opts) { Object.assign(this, opts); }
+      update(dt) { this.life -= dt; }
+      draw() {
+        const a = clamp(this.life / this.maxLife, 0, 1) * this.alpha;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        const g = ctx.createLinearGradient(-this.length / 2, 0, this.length / 2, 0);
+        g.addColorStop(0, this.color.replace('ALPHA', '0'));
+        g.addColorStop(0.5, this.color.replace('ALPHA', a.toFixed(3)));
+        g.addColorStop(1, this.color.replace('ALPHA', '0'));
+        ctx.fillStyle = g;
+        ctx.fillRect(-this.length / 2, -this.width / 2, this.length, this.width);
+        ctx.restore();
+      }
+      get dead() { return this.life <= 0; }
+    }
+
+    const bullets = [];
+    const particles = [];
+    const waves = [];
+    const sparks = [];
+    const ghosts = [];
+    const targets = [];
+    const pickups = [];
+    const enemyDrifters = [];
+
+    function seedTargets() {
+      targets.length = 0;
+      pickups.length = 0;
+      enemyDrifters.length = 0;
+      for (let i = 0; i < 5; i++) {
+        targets.push({
+          x: rand(width * 0.18, width * 0.82),
+          y: rand(height * 0.18, height * 0.48),
+          r: rand(16, 24),
+          phase: rand(0, TAU),
+          baseX: 0,
+          baseY: 0,
+          offsetX: 0,
+          offsetY: 0,
+          tint: i % 2 ? 'rgba(118,180,255,ALPHA)' : 'rgba(255,122,144,ALPHA)'
+        });
+      }
+      for (const t of targets) { t.baseX = t.x; t.baseY = t.y; }
+      for (let i = 0; i < 8; i++) {
+        pickups.push({ x: rand(width * 0.15, width * 0.85), y: rand(height * 0.24, height * 0.62), r: 7, type: i % 2 ? 'coin' : 'xp', vx: 0, vy: 0 });
+      }
+    }
+
+    class Bullet {
+      constructor(type) {
+        this.type = type;
+        this.reset();
+      }
+      reset() {
+        this.x = width * 0.5;
+        this.y = height - 70;
+        this.alive = true;
+        this.age = 0;
+        this.hitCount = 0;
+        this.radius = 8;
+        this.vx = 0;
+        this.vy = -420;
+        this.angle = -Math.PI / 2;
+        this.bounces = 0;
+        this.massive = false;
+        const sx = rand(width * 0.28, width * 0.72);
+        this.targetX = sx;
+        this.targetY = rand(height * 0.2, height * 0.45);
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        const len = Math.hypot(dx, dy) || 1;
+        this.vx = dx / len * 420;
+        this.vy = dy / len * 420;
+        if (this.type.id === 'fast') {
+          this.vx *= 1.8; this.vy *= 1.8; this.radius = 5;
+        }
+        if (this.type.id === 'gravity') {
+          this.vx *= 0.52; this.vy *= 0.52; this.radius = 11; this.massive = true;
+        }
+      }
+      update(dt) {
+        if (!this.alive) return;
+        this.age += dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.angle = Math.atan2(this.vy, this.vx);
+        this.type.update?.(this, dt);
+
+        if (this.type.id === 'ricochet') {
+          if (this.x < 20 || this.x > width - 20) this.vx *= -1;
+          if (this.y < 20) this.vy *= -1;
+          if (this.y > height + 20) this.alive = false;
+        } else if (this.x < -40 || this.x > width + 40 || this.y < -40 || this.y > height + 40) {
+          this.alive = false;
+        }
+
+        if (this.type.id === 'absorb') {
+          for (const p of pickups) {
+            const dx = p.x - this.x;
+            const dy = p.y - this.y;
+            const d = Math.hypot(dx, dy);
+            if (d < this.radius + p.r + 8) {
+              p.attracted = true;
+            }
+          }
+        }
+
+        if (this.hitCount === 0) {
+          const hitTarget = targets.find(t => Math.hypot(t.x - this.x, t.y - this.y) < t.r + this.radius);
+          if (hitTarget) {
+            this.hitCount++;
+            this.type.hit?.(this, hitTarget);
+            if (this.type.id === 'split') {
+              spawnSplit(this, -0.45);
+              spawnSplit(this, 0.45);
+            }
+            if (this.type.id !== 'ricochet') this.alive = false;
+          }
+        }
+      }
+      draw() {
+        this.type.draw?.(this);
+      }
+    }
+
+    function spawnBullet(type) { bullets.push(new Bullet(type)); }
+
+    function spawnSplit(parent, angleOffset) {
+      const b = new Bullet(types.find(t => t.id === 'splitChild'));
+      b.x = parent.x;
+      b.y = parent.y;
+      const speed = 360;
+      const a = parent.angle + angleOffset;
+      b.vx = Math.cos(a) * speed;
+      b.vy = Math.sin(a) * speed;
+      b.radius = 5;
+      bullets.push(b);
+    }
+
+    function addBurst(x, y, count, color, speedMin, speedMax, radiusMin, radiusMax, lifeMin, lifeMax, gravity = 0) {
+      for (let i = 0; i < count; i++) {
+        const a = rand(0, TAU);
+        const s = rand(speedMin, speedMax);
+        particles.push(new Particle({
+          x, y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          radius: rand(radiusMin, radiusMax),
+          color,
+          life: rand(lifeMin, lifeMax),
+          maxLife: lifeMax,
+          drag: 0.96,
+          shrink: 0.98,
+          gravity,
+          alpha: 1
+        }));
+      }
+    }
+
+    function addLightning(x1, y1, x2, y2, color) {
+      const segs = 8;
+      const points = [{ x: x1, y: y1 }];
+      for (let i = 1; i < segs; i++) {
+        const t = i / segs;
+        const x = x1 + (x2 - x1) * t + rand(-10, 10);
+        const y = y1 + (y2 - y1) * t + rand(-10, 10);
+        points.push({ x, y });
+      }
+      points.push({ x: x2, y: y2 });
+      sparks.push(new SparkLine(points, color, 0.16, 3));
+      sparks.push(new SparkLine(points, 'rgba(255,255,255,ALPHA)', 0.08, 1.25));
+    }
+
+    function addTrailGhost(bullet, color, widthScale = 1, life = 0.12, len = 40) {
+      ghosts.push(new TrailGhost({
+        x: bullet.x,
+        y: bullet.y,
+        angle: bullet.angle,
+        length: len,
+        width: bullet.radius * widthScale,
+        color,
+        life,
+        maxLife: life,
+        alpha: 0.9
+      }));
+    }
+
+    const types = [
+      {
+        id: 'burst',
+        name: '爆裂弹',
+        desc: '橙色冲击波与熔岩裂纹弹体',
+        draw(b) {
+          addTrailGhost(b, 'rgba(255,130,50,ALPHA)', 1.4, 0.1, 28);
+          glowCircle(b.x, b.y, 24, 'rgba(255,128,50,ALPHA)', 0.45);
+          ctx.save();
+          ctx.translate(b.x, b.y);
+          ctx.rotate(b.angle);
+          ctx.fillStyle = '#2b1a12';
+          ctx.beginPath();
+          ctx.arc(0, 0, 8, 0, TAU);
+          ctx.fill();
+          for (let i = 0; i < 4; i++) {
+            ctx.strokeStyle = 'rgba(255,155,70,0.9)';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(i * 1.4) * 7, Math.sin(i * 1.4) * 7);
+            ctx.stroke();
+          }
+          ctx.restore();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 16, speed: 240, thickness: 6, color: 'rgba(255,148,72,ALPHA)', life: 0.55, maxLife: 0.55 }));
+          glowCircle(b.x, b.y, 70, 'rgba(255,120,40,ALPHA)', 0.9);
+          addBurst(b.x, b.y, 24, 'rgba(255,165,60,ALPHA)', 50, 260, 3, 8, 0.28, 0.6);
+        }
+      },
+      {
+        id: 'burn',
+        name: '燃烧弹',
+        desc: '火焰尾迹与灼烧命中环',
+        update(b, dt) {
+          if (Math.random() < 0.7) {
+            particles.push(new Particle({
+              x: b.x - Math.cos(b.angle) * 12 + rand(-2, 2),
+              y: b.y - Math.sin(b.angle) * 12 + rand(-2, 2),
+              vx: rand(-18, 18), vy: rand(12, 45), radius: rand(5, 9),
+              color: pick(['rgba(255,124,20,ALPHA)', 'rgba(255,194,60,ALPHA)', 'rgba(255,75,20,ALPHA)']),
+              life: 0.22, maxLife: 0.22, drag: 0.92, shrink: 0.95
+            }));
+          }
+        },
+        draw(b) {
+          glowCircle(b.x, b.y, 28, 'rgba(255,110,30,ALPHA)', 0.35);
+          ctx.fillStyle = '#ffd07a';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 7, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,72,20,0.9)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 10, 0, TAU);
+          ctx.stroke();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 12, speed: 120, thickness: 4, color: 'rgba(255,96,30,ALPHA)', life: 0.45, maxLife: 0.45 }));
+          for (let i = 0; i < 18; i++) {
+            particles.push(new Particle({ x: b.x, y: b.y, vx: rand(-80, 80), vy: rand(-120, -10), radius: rand(5, 10), color: pick(['rgba(255,128,20,ALPHA)', 'rgba(255,200,80,ALPHA)']), life: rand(0.36, 0.58), maxLife: 0.58, drag: 0.92, shrink: 0.96, gravity: 260 }));
+          }
+        }
+      },
+      {
+        id: 'frost',
+        name: '寒霜弹',
+        desc: '冰层弹体与冰蓝脉冲环',
+        update(b) {
+          if (Math.random() < 0.45) {
+            particles.push(new Particle({ x: b.x + rand(-3, 3), y: b.y + rand(-3, 3), vx: rand(-12, 12), vy: rand(-6, 20), radius: rand(3, 6), color: 'rgba(180,230,255,ALPHA)', life: 0.24, maxLife: 0.24, drag: 0.94, shrink: 0.97 }));
+          }
+        },
+        draw(b) {
+          glowCircle(b.x, b.y, 24, 'rgba(120,220,255,ALPHA)', 0.25);
+          ctx.fillStyle = '#d9f4ff';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 7.5, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(80,180,255,0.95)';
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 10, 0, TAU);
+          ctx.stroke();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 10, speed: 140, thickness: 4, color: 'rgba(128,216,255,ALPHA)', life: 0.52, maxLife: 0.52 }));
+          for (let i = 0; i < 16; i++) {
+            const a = rand(0, TAU);
+            const s = rand(60, 180);
+            const len = rand(6, 12);
+            sparks.push(new SparkLine([{ x: b.x, y: b.y }, { x: b.x + Math.cos(a) * len, y: b.y + Math.sin(a) * len }], 'rgba(180,240,255,ALPHA)', 0.18, 1.8));
+            particles.push(new Particle({ x: b.x, y: b.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, radius: rand(2, 5), color: 'rgba(180,240,255,ALPHA)', life: 0.34, maxLife: 0.34, drag: 0.95, shrink: 0.97 }));
+          }
+        }
+      },
+      {
+        id: 'arc',
+        name: '电弧弹',
+        desc: '紫色闪电缠绕与连锁电弧',
+        draw(b) {
+          addTrailGhost(b, 'rgba(180,90,255,ALPHA)', 1.2, 0.08, 22);
+          glowCircle(b.x, b.y, 20, 'rgba(190,110,255,ALPHA)', 0.3);
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6.2, 0, TAU);
+          ctx.fill();
+          for (let i = 0; i < 3; i++) {
+            const a = rand(0, TAU);
+            lineGlow(b.x, b.y, b.x + Math.cos(a) * 14, b.y + Math.sin(a) * 14, 1.2, 'rgba(186,114,255,ALPHA)', 0.8);
+          }
+        },
+        hit(b, target) {
+          const sorted = [...targets].sort((a, c) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(c.x - target.x, c.y - target.y));
+          let from = { x: b.x, y: b.y };
+          for (let i = 0; i < Math.min(3, sorted.length); i++) {
+            const t = sorted[i];
+            addLightning(from.x, from.y, t.x, t.y, 'rgba(180,100,255,ALPHA)');
+            glowCircle(t.x, t.y, 28, 'rgba(180,110,255,ALPHA)', 0.35);
+            from = t;
+          }
+        }
+      },
+      {
+        id: 'corrode',
+        name: '腐蚀弹',
+        desc: '绿雾包裹与腐蚀酸液扩散',
+        update(b) {
+          if (Math.random() < 0.55) {
+            particles.push(new Particle({ x: b.x + rand(-4, 4), y: b.y + rand(-4, 4), vx: rand(-15, 15), vy: rand(-5, 20), radius: rand(4, 8), color: 'rgba(100,255,120,ALPHA)', life: 0.3, maxLife: 0.3, drag: 0.94, shrink: 0.975 }));
+          }
+        },
+        draw(b) {
+          glowCircle(b.x, b.y, 26, 'rgba(90,255,120,ALPHA)', 0.2);
+          ctx.fillStyle = '#d8ff7d';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6.6, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(88,240,116,0.95)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 10.5, 0, TAU);
+          ctx.stroke();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 14, speed: 86, thickness: 5, color: 'rgba(84,255,124,ALPHA)', life: 0.58, maxLife: 0.58 }));
+          for (let i = 0; i < 18; i++) {
+            particles.push(new Particle({ x: b.x, y: b.y, vx: rand(-100, 100), vy: rand(-60, 60), radius: rand(4, 9), color: pick(['rgba(92,255,124,ALPHA)', 'rgba(156,255,88,ALPHA)']), life: rand(0.4, 0.7), maxLife: 0.7, drag: 0.93, shrink: 0.97 }));
+          }
+        }
+      },
+      {
+        id: 'absorb',
+        name: '吸收弹',
+        desc: '黄色吸附场与掉落物回收轨迹',
+        draw(b) {
+          addTrailGhost(b, 'rgba(255,220,70,ALPHA)', 1.3, 0.09, 24);
+          glowCircle(b.x, b.y, 30, 'rgba(255,215,90,ALPHA)', 0.24);
+          ring(b.x, b.y, 14 + Math.sin(performance.now() / 120) * 2, 2, 'rgba(255,220,90,ALPHA)', 0.75);
+          ctx.fillStyle = '#fff2a2';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6.5, 0, TAU);
+          ctx.fill();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 16, speed: 180, thickness: 4, color: 'rgba(255,220,96,ALPHA)', life: 0.42, maxLife: 0.42 }));
+        }
+      },
+      {
+        id: 'split',
+        name: '分裂弹',
+        desc: '首次命中分裂成两发粉色子弹',
+        draw(b) {
+          addTrailGhost(b, 'rgba(255,120,220,ALPHA)', 1.2, 0.08, 24);
+          glowCircle(b.x, b.y, 20, 'rgba(255,120,220,ALPHA)', 0.22);
+          ctx.fillStyle = '#ffd5f3';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6.3, 0, TAU);
+          ctx.fill();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 10, speed: 140, thickness: 3, color: 'rgba(255,130,220,ALPHA)', life: 0.36, maxLife: 0.36 }));
+          addLightning(b.x - 2, b.y, b.x - 26, b.y - 22, 'rgba(255,140,220,ALPHA)');
+          addLightning(b.x + 2, b.y, b.x + 26, b.y - 22, 'rgba(255,140,220,ALPHA)');
+        }
+      },
+      {
+        id: 'splitChild',
+        name: '分裂子弹',
+        desc: '内部使用',
+        draw(b) {
+          addTrailGhost(b, 'rgba(255,150,230,ALPHA)', 1.1, 0.06, 18);
+          ctx.fillStyle = '#ffe7fb';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 4.8, 0, TAU);
+          ctx.fill();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 8, speed: 110, thickness: 2, color: 'rgba(255,170,230,ALPHA)', life: 0.2, maxLife: 0.2 }));
+        }
+      },
+      {
+        id: 'fast',
+        name: '高速弹',
+        desc: '更细更长的高速拖尾',
+        draw(b) {
+          addTrailGhost(b, 'rgba(150,210,255,ALPHA)', 0.6, 0.08, 70);
+          addTrailGhost(b, 'rgba(255,255,255,ALPHA)', 0.3, 0.04, 44);
+          ctx.save();
+          ctx.translate(b.x, b.y);
+          ctx.rotate(b.angle);
+          const g = ctx.createLinearGradient(-18, 0, 18, 0);
+          g.addColorStop(0, 'rgba(120,190,255,0)');
+          g.addColorStop(0.5, 'rgba(220,245,255,1)');
+          g.addColorStop(1, 'rgba(120,190,255,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(-18, -2, 36, 4);
+          ctx.restore();
+        },
+        hit(b) {
+          for (let i = 0; i < 10; i++) {
+            particles.push(new Particle({ x: b.x, y: b.y, vx: rand(-120, 120), vy: rand(-60, 60), radius: rand(2, 4), color: 'rgba(180,220,255,ALPHA)', life: 0.2, maxLife: 0.2, drag: 0.94, shrink: 0.96 }));
+          }
+        }
+      },
+      {
+        id: 'gravity',
+        name: '重力弹',
+        desc: '蓝紫厚重拖尾与重压吸扯波',
+        draw(b) {
+          addTrailGhost(b, 'rgba(110,100,255,ALPHA)', 1.9, 0.14, 34);
+          addTrailGhost(b, 'rgba(190,140,255,ALPHA)', 1.2, 0.1, 22);
+          glowCircle(b.x, b.y, 32, 'rgba(110,100,255,ALPHA)', 0.28);
+          ctx.fillStyle = '#dad3ff';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 10, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(134,118,255,0.95)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 14, 0, TAU);
+          ctx.stroke();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 14, speed: 90, thickness: 8, color: 'rgba(110,100,255,ALPHA)', life: 0.65, maxLife: 0.65 }));
+          glowCircle(b.x, b.y, 86, 'rgba(90,70,255,ALPHA)', 0.6);
+          for (const t of targets) {
+            const dx = b.x - t.x;
+            const dy = b.y - t.y;
+            const d = Math.hypot(dx, dy) || 1;
+            if (d < 220) {
+              t.offsetX += dx / d * (36 / Math.max(1, d / 18));
+              t.offsetY += dy / d * (36 / Math.max(1, d / 18));
+            }
+          }
+        }
+      },
+      {
+        id: 'ricochet',
+        name: '反弹弹',
+        desc: '青绿色无限反弹轨迹',
+        update(b) {
+          addTrailGhost(b, 'rgba(70,255,220,ALPHA)', 1.0, 0.1, 32);
+        },
+        draw(b) {
+          glowCircle(b.x, b.y, 20, 'rgba(70,255,220,ALPHA)', 0.22);
+          ctx.fillStyle = '#d8fff8';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6.5, 0, TAU);
+          ctx.fill();
+        },
+        hit(b) {
+          waves.push(new RingWave({ x: b.x, y: b.y, radius: 9, speed: 90, thickness: 3, color: 'rgba(80,255,220,ALPHA)', life: 0.24, maxLife: 0.24 }));
+          b.vy *= -1;
+        }
+      }
+    ];
+
+    let currentType = types[0];
+
+    types.filter(t => t.id !== 'splitChild').forEach((type, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'effect-btn' + (index === 0 ? ' active' : '');
+      btn.textContent = type.name;
+      btn.addEventListener('click', () => selectType(type, btn));
+      effectList.appendChild(btn);
+    });
+
+    function selectType(type, btn) {
+      currentType = type;
+      [...effectList.children].forEach(node => node.classList.remove('active'));
+      btn.classList.add('active');
+      currentName.textContent = '当前：' + type.name;
+      currentDesc.textContent = type.desc;
+      clearEffects();
+      seedTargets();
+      fireNow();
+    }
+
+    function clearEffects() {
+      bullets.length = 0;
+      particles.length = 0;
+      waves.length = 0;
+      sparks.length = 0;
+      ghosts.length = 0;
+    }
+
+    function fireNow() { spawnBullet(currentType); }
+    fireBtn.addEventListener('click', fireNow);
+
+    let autoTimer = 0;
+    let lastTime = performance.now();
+
+    function update(dt) {
+      autoTimer += dt;
+      if (autoTimer > 1.2) {
+        autoTimer = 0;
+        fireNow();
+      }
+
+      for (const t of targets) {
+        t.phase += dt * 0.9;
+        t.x = t.baseX + Math.sin(t.phase) * 14 + t.offsetX;
+        t.y = t.baseY + Math.cos(t.phase * 1.3) * 8 + t.offsetY;
+        t.offsetX *= 0.9;
+        t.offsetY *= 0.9;
+      }
+
+      for (const p of pickups) {
+        p.vx *= 0.95;
+        p.vy *= 0.95;
+        if (p.attracted) {
+          const tx = width * 0.5;
+          const ty = height - 70;
+          const dx = tx - p.x;
+          const dy = ty - p.y;
+          const d = Math.hypot(dx, dy) || 1;
+          p.vx += dx / d * 32;
+          p.vy += dy / d * 32;
+          if (d < 18) {
+            p.x = rand(width * 0.15, width * 0.85);
+            p.y = rand(height * 0.24, height * 0.62);
+            p.attracted = false;
+            addBurst(tx, ty, 8, 'rgba(255,220,80,ALPHA)', 20, 90, 2, 5, 0.12, 0.26);
+          }
+        }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+
+      [bullets, particles, waves, sparks, ghosts].forEach(list => {
+        for (let i = list.length - 1; i >= 0; i--) {
+          list[i].update(dt);
+          if (list[i].dead || list[i].alive === false) list.splice(i, 1);
+        }
+      });
+    }
+
+    function drawBackground() {
+      ctx.clearRect(0, 0, width, height);
+      const bg = ctx.createLinearGradient(0, 0, 0, height);
+      bg.addColorStop(0, '#0b1022');
+      bg.addColorStop(1, '#070b14');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      for (let i = 0; i < 40; i++) {
+        const x = (i * 83) % width;
+        const y = (i * 157) % height;
+        glowCircle(x, y, 1.5, 'rgba(255,255,255,ALPHA)', 0.8);
+      }
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y < height; y += 44) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawTurret() {
+      const x = width * 0.5;
+      const y = height - 70;
+      glowCircle(x, y, 52, 'rgba(100,140,255,ALPHA)', 0.18);
+      ring(x, y, 28, 2, 'rgba(100,140,255,ALPHA)', 0.6);
+      ctx.fillStyle = '#dce6ff';
+      ctx.beginPath();
+      ctx.arc(x, y, 16, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#7d96ff';
+      ctx.beginPath();
+      ctx.roundRect(x - 6, y - 28, 12, 30, 6);
+      ctx.fill();
+    }
+
+    function drawTargets() {
+      for (const t of targets) {
+        glowCircle(t.x, t.y, t.r * 1.8, t.tint, 0.18);
+        ctx.fillStyle = '#121d36';
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.r, 0, TAU);
+        ctx.fill();
+        ring(t.x, t.y, t.r + 2, 2, t.tint, 0.8);
+      }
+      for (const p of pickups) {
+        const color = p.type === 'coin' ? 'rgba(255,214,60,ALPHA)' : 'rgba(100,255,200,ALPHA)';
+        glowCircle(p.x, p.y, p.r * 2.2, color, 0.2);
+        ctx.fillStyle = p.type === 'coin' ? '#ffe16f' : '#8effde';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    function render() {
+      drawBackground();
+      drawTargets();
+      drawTurret();
+      ctx.globalCompositeOperation = 'lighter';
+      ghosts.forEach(item => item.draw());
+      waves.forEach(item => item.draw());
+      sparks.forEach(item => item.draw());
+      particles.forEach(item => item.draw());
+      bullets.forEach(item => item.draw());
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.033, (now - lastTime) / 1000);
+      lastTime = now;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    seedTargets();
+    fireNow();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

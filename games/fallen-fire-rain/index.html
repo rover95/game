@@ -11,29 +11,40 @@
     <aside class="hud">
       <p class="eyebrow">Vertical Survival / Ricochet Build</p>
       <h1>陨落火雨</h1>
-      <p class="summary">点击战场启动自动射击。子弹会在墙壁与目标间反弹，收集经验升级三选一、积攒金币购买波次商店强化，守住基地直到 Boss 波。</p>
+      <p class="summary">按住左键持续开火，炮口始终跟随鼠标。子弹会在墙壁与目标间反弹，收集经验升级三选一、积攒金币购买波次商店强化，守住基地直到 Boss 波。</p>
       <section class="panel">
         <h2>操作</h2>
         <ul>
-          <li>左键点击：启动自动开火</li>
-          <li>移动鼠标：调整炮台角度</li>
+          <li>按住左键：持续开火</li>
+          <li>移动鼠标：实时调整炮台角度</li>
           <li>Q / E：切换弹药模式（普通 / 穿透）</li>
           <li>Space：释放主动技能（脉冲清场）</li>
         </ul>
       </section>
       <section class="panel panel--compact">
         <button id="restart" type="button">重新开始</button>
+        <button id="open-shop" class="ghost" type="button">打开商店</button>
       </section>
     </aside>
 
     <main class="stage-wrap">
-      <canvas id="stage" width="720" height="1280" aria-label="陨落火雨游戏画布"></canvas>
+      <canvas id="stage" width="640" height="1280" aria-label="陨落火雨游戏画布"></canvas>
       <div class="overlay hud-strip">
         <span id="wave">波次 1</span>
         <span id="hp">基地 20/20</span>
         <span id="gold">金币 0</span>
         <span id="level">Lv1</span>
+        <span id="ammo">子弹 未选择</span>
       </div>
+
+      <section id="bullet-modal" class="modal hidden">
+        <div class="modal__card">
+          <p class="tag">弹药选择</p>
+          <h2 id="bullet-title">选择一种子弹类型</h2>
+          <p id="bullet-hint" class="hint"></p>
+          <div id="bullet-options" class="cards"></div>
+        </div>
+      </section>
 
       <section id="level-modal" class="modal hidden">
         <div class="modal__card">
