@@ -29,6 +29,11 @@ const MIN_FOG_DENSITY = 0.028;
 const viewportEl = document.getElementById("viewport");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
+const cloudBestEl = document.getElementById("cloud-best");
+const cloudBestMetaEl = document.getElementById("cloud-best-meta");
+const globalBestEl = document.getElementById("global-best");
+const globalBestMetaEl = document.getElementById("global-best-meta");
+const cloudSyncStatusEl = document.getElementById("cloud-sync-status");
 const undoButtonEl = document.getElementById("undo");
 const restartButtonEl = document.getElementById("restart");
 const boardSizeSelectEl = document.getElementById("board-size");
@@ -67,6 +72,43 @@ let swipeStartX = 0;
 let swipeStartY = 0;
 let swipeLastX = 0;
 let swipeLastY = 0;
+let userFingerprint = "unknown";
+let cloudSyncState = {
+  myBestScore: 0,
+  myMaxTile: 0,
+  globalBestScore: 0,
+  globalMaxTile: 0,
+};
+let cloudIssueCache = null;
+let cloudSyncEnabled = false;
+let cloudSyncBusy = false;
+let cloudSyncScheduled = false;
+let cloudSyncReady = false;
+
+const SCOREBOARD_GAME = "impact-merge-2048";
+const SCOREBOARD_VERSION = 1;
+const CLOUD_SYNC_MIN_INTERVAL_MS = 2500;
+const CLOUD_LAST_SYNC_KEY = "impact-merge-2048-cloud-sync-at";
+const GITHUB_ISSUES_TOKEN_KEY = "impact-merge-2048-github-token";
+const cloudConfig = {
+  owner: document.documentElement.dataset.githubOwner || "",
+  repo: document.documentElement.dataset.githubRepo || "",
+  label: document.documentElement.dataset.githubLabel || "2048-score",
+  token: document.documentElement.dataset.githubToken || "",
+};
+
+const inferCloudRepoConfig = () => {
+  if (cloudConfig.owner && cloudConfig.repo) {
+    return;
+  }
+
+  const hostMatch = window.location.hostname.match(/^([^.]+)\.github\.io$/);
+  const pathSegments = window.location.pathname.split("/").filter(Boolean);
+  if (hostMatch && pathSegments.length > 0) {
+    cloudConfig.owner = cloudConfig.owner || hostMatch[1];
+    cloudConfig.repo = cloudConfig.repo || pathSegments[0];
+  }
+};
 
 const MIN_SWIPE_DISTANCE = 26;
 
@@ -821,6 +863,296 @@ const saveBestScore = (value, size = currentBoardSize) => {
   }
 };
 
+const getHighestTileValueFromState = (sourceState) => sourceState.tiles.reduce((max, tile) => Math.max(max, tile.value), 0);
+
+const setCloudSyncStatus = (text) => {
+  if (cloudSyncStatusEl) {
+    cloudSyncStatusEl.textContent = text;
+  }
+};
+
+const normalizeScorePayload = (rawPayload) => {
+  if (!rawPayload || typeof rawPayload !== "object") {
+    return null;
+  }
+
+  if (rawPayload.game !== SCOREBOARD_GAME) {
+    return null;
+  }
+
+  const score = Number(rawPayload.bestScore);
+  const maxTile = Number(rawPayload.maxTile);
+  const boardSize = Number(rawPayload.boardSize);
+
+  if (
+    !Number.isFinite(score) ||
+    !Number.isFinite(maxTile) ||
+    !Number.isFinite(boardSize) ||
+    score < 0 ||
+    maxTile < 0 ||
+    !BOARD_SIZE_OPTIONS.includes(boardSize)
+  ) {
+    return null;
+  }
+
+  return {
+    version: Number(rawPayload.version) || SCOREBOARD_VERSION,
+    game: SCOREBOARD_GAME,
+    fingerprint: String(rawPayload.fingerprint || ""),
+    bestScore: Math.round(score),
+    maxTile: Math.round(maxTile),
+    boardSize,
+    updatedAt: String(rawPayload.updatedAt || ""),
+  };
+};
+
+const parseIssueScorePayload = (issueBody) => {
+  if (typeof issueBody !== "string") {
+    return null;
+  }
+
+  const startMarker = "<!-- 2048-SCOREBOARD:START -->";
+  const endMarker = "<!-- 2048-SCOREBOARD:END -->";
+  const start = issueBody.indexOf(startMarker);
+  const end = issueBody.indexOf(endMarker);
+
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+
+  const payloadText = issueBody.slice(start + startMarker.length, end).trim();
+  try {
+    return normalizeScorePayload(JSON.parse(payloadText));
+  } catch (error) {
+    return null;
+  }
+};
+
+const toIssueBody = (payload) => [
+  "自动记录 2048 玩家分数（请勿手动编辑该 JSON 块）。",
+  "",
+  "<!-- 2048-SCOREBOARD:START -->",
+  JSON.stringify(payload, null, 2),
+  "<!-- 2048-SCOREBOARD:END -->",
+].join("\n");
+
+const getScorePayloadFromState = (sourceState) => ({
+  version: SCOREBOARD_VERSION,
+  game: SCOREBOARD_GAME,
+  fingerprint: userFingerprint,
+  bestScore: sourceState.best,
+  maxTile: getHighestTileValueFromState(sourceState),
+  boardSize: sourceState.size,
+  updatedAt: new Date().toISOString(),
+});
+
+const getFingerprintSource = () => {
+  const nav = window.navigator;
+  const screenInfo = window.screen;
+  return [
+    nav.userAgent || "",
+    nav.language || "",
+    (nav.languages || []).join(","),
+    String(nav.hardwareConcurrency || ""),
+    String(nav.deviceMemory || ""),
+    String(screenInfo.width || ""),
+    String(screenInfo.height || ""),
+    String(screenInfo.colorDepth || ""),
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  ].join("||");
+};
+
+const buildFingerprint = async () => {
+  const source = getFingerprintSource();
+  const bytes = new TextEncoder().encode(source);
+  if (window.crypto?.subtle) {
+    const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 32);
+  }
+
+  let hash = 2166136261;
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+};
+
+const getCloudSyncToken = () => cloudConfig.token || window.localStorage.getItem(GITHUB_ISSUES_TOKEN_KEY) || "";
+
+const getIssueTitle = (fingerprint) => `[${SCOREBOARD_GAME}] ${fingerprint}`;
+
+const fetchScoreIssues = async () => {
+  const url = new URL(`https://api.github.com/repos/${cloudConfig.owner}/${cloudConfig.repo}/issues`);
+  url.searchParams.set("state", "open");
+  url.searchParams.set("labels", cloudConfig.label);
+  url.searchParams.set("per_page", "100");
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub issues list failed (${response.status})`);
+  }
+  const issues = await response.json();
+  return Array.isArray(issues) ? issues : [];
+};
+
+const refreshCloudStats = (issues) => {
+  let myBestScore = 0;
+  let myMaxTile = 0;
+  let globalBestScore = 0;
+  let globalMaxTile = 0;
+  cloudIssueCache = null;
+
+  issues.forEach((issue) => {
+    const payload = parseIssueScorePayload(issue.body);
+    if (!payload) {
+      return;
+    }
+
+    if (
+      payload.bestScore > globalBestScore ||
+      (payload.bestScore === globalBestScore && payload.maxTile > globalMaxTile)
+    ) {
+      globalBestScore = payload.bestScore;
+      globalMaxTile = payload.maxTile;
+    }
+
+    if (payload.fingerprint === userFingerprint) {
+      if (
+        payload.bestScore > myBestScore ||
+        (payload.bestScore === myBestScore && payload.maxTile >= myMaxTile)
+      ) {
+        myBestScore = payload.bestScore;
+        myMaxTile = payload.maxTile;
+        cloudIssueCache = issue;
+      }
+    }
+  });
+
+  cloudSyncState = {
+    myBestScore,
+    myMaxTile,
+    globalBestScore,
+    globalMaxTile,
+  };
+};
+
+const renderCloudHud = () => {
+  cloudBestEl.textContent = String(cloudSyncState.myBestScore || 0);
+  cloudBestMetaEl.textContent = `最大数字 ${cloudSyncState.myMaxTile || 0}`;
+  globalBestEl.textContent = String(cloudSyncState.globalBestScore || 0);
+  globalBestMetaEl.textContent = `最大数字 ${cloudSyncState.globalMaxTile || 0}`;
+};
+
+const loadCloudScoreboard = async () => {
+  if (!cloudSyncEnabled) {
+    renderCloudHud();
+    setCloudSyncStatus("云端积分已关闭（未配置 GitHub 仓库）。");
+    cloudSyncReady = true;
+    return;
+  }
+
+  try {
+    const issues = await fetchScoreIssues();
+    refreshCloudStats(issues);
+    renderCloudHud();
+    const token = getCloudSyncToken();
+    setCloudSyncStatus(token ? "云端积分已连接，可自动同步。" : "云端可读取，写入需设置 Token。");
+  } catch (error) {
+    setCloudSyncStatus("读取云端积分失败，已回退到本地记录。");
+  } finally {
+    cloudSyncReady = true;
+  }
+};
+
+const pushCloudScoreIfNeeded = async () => {
+  if (!cloudSyncEnabled || !cloudSyncReady || cloudSyncBusy) {
+    return;
+  }
+
+  const token = getCloudSyncToken();
+  if (!token) {
+    return;
+  }
+
+  const payload = getScorePayloadFromState(state);
+  const shouldSyncMine = (
+    payload.bestScore > cloudSyncState.myBestScore ||
+    (payload.bestScore === cloudSyncState.myBestScore && payload.maxTile > cloudSyncState.myMaxTile)
+  );
+
+  if (!shouldSyncMine) {
+    return;
+  }
+
+  const lastSyncAt = Number(window.localStorage.getItem(CLOUD_LAST_SYNC_KEY) || 0);
+  if (Date.now() - lastSyncAt < CLOUD_SYNC_MIN_INTERVAL_MS) {
+    if (!cloudSyncScheduled) {
+      cloudSyncScheduled = true;
+      window.setTimeout(() => {
+        cloudSyncScheduled = false;
+        pushCloudScoreIfNeeded();
+      }, CLOUD_SYNC_MIN_INTERVAL_MS);
+    }
+    return;
+  }
+
+  cloudSyncBusy = true;
+  setCloudSyncStatus("正在写入云端积分…");
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    if (cloudIssueCache?.number) {
+      await fetch(`https://api.github.com/repos/${cloudConfig.owner}/${cloudConfig.repo}/issues/${cloudIssueCache.number}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          body: toIssueBody(payload),
+          title: getIssueTitle(userFingerprint),
+        }),
+      });
+    } else {
+      const createResponse = await fetch(`https://api.github.com/repos/${cloudConfig.owner}/${cloudConfig.repo}/issues`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: getIssueTitle(userFingerprint),
+          labels: [cloudConfig.label],
+          body: toIssueBody(payload),
+        }),
+      });
+      if (createResponse.ok) {
+        cloudIssueCache = await createResponse.json();
+      }
+    }
+
+    cloudSyncState = {
+      myBestScore: Math.max(cloudSyncState.myBestScore, payload.bestScore),
+      myMaxTile: Math.max(cloudSyncState.myMaxTile, payload.maxTile),
+      globalBestScore: Math.max(cloudSyncState.globalBestScore, payload.bestScore),
+      globalMaxTile: Math.max(cloudSyncState.globalMaxTile, payload.maxTile),
+    };
+    renderCloudHud();
+    window.localStorage.setItem(CLOUD_LAST_SYNC_KEY, String(Date.now()));
+    setCloudSyncStatus("云端积分同步成功。");
+  } catch (error) {
+    setCloudSyncStatus("云端同步失败，请检查 GitHub Token 权限。");
+  } finally {
+    cloudSyncBusy = false;
+  }
+};
+
 /**
  * Strips transient render-only flags before state persistence or stable re-use.
  * Param: `sourceState` is a committed gameplay snapshot.
@@ -1252,6 +1584,8 @@ const renderHud = () => {
   scoreEl.textContent = String(state.score);
   bestEl.textContent = String(persistedBest);
   saveBestScore(persistedBest, state.size);
+  renderCloudHud();
+  pushCloudScoreIfNeeded();
   updateUndoUi();
 };
 
@@ -2445,7 +2779,17 @@ const renderFrame = () => {
  * Wires all UI events, builds the static scene, and starts the render loop.
  * Usage boundary: one-time application bootstrap.
  */
-const init = () => {
+const init = async () => {
+  inferCloudRepoConfig();
+  const tokenFromQuery = new URLSearchParams(window.location.search).get("gh_token");
+  if (tokenFromQuery) {
+    window.localStorage.setItem(GITHUB_ISSUES_TOKEN_KEY, tokenFromQuery);
+  }
+  cloudSyncEnabled = Boolean(cloudConfig.owner && cloudConfig.repo);
+  userFingerprint = await buildFingerprint();
+  setCloudSyncStatus(cloudSyncEnabled ? "云端积分连接中…" : "云端积分已关闭（未配置 GitHub 仓库）。");
+  renderCloudHud();
+
   const restoredSession = loadSavedGame();
   if (restoredSession) {
     currentBoardSize = restoredSession.state.size;
@@ -2513,6 +2857,7 @@ const init = () => {
   window.addEventListener("resize", resizeViewport);
   window.addEventListener("keydown", handleKeydown, { passive: false });
   renderer.setAnimationLoop(renderFrame);
+  loadCloudScoreboard();
 };
 
 init();
